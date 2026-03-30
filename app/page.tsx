@@ -1,113 +1,144 @@
-import Image from 'next/image';
-
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <div>
+      {/* Navigation */}
+<nav className="w-full bg-white flex items-center justify-between px-8 py-4 shadow-sm">
+  <img 
+    src="/Asset 1.png" 
+    alt="Gather" 
+    className="w-24"
+  />
+  <div className="flex items-center gap-3">
+    <a href="/" className="bg-gray-900 text-white py-2 px-5 rounded-full font-medium text-sm hover:bg-gray-700 transition-colors">
+      Home
+    </a>
+    <a href="/signup" className="border border-gray-200 text-gray-700 py-2 px-5 rounded-full font-medium text-sm hover:bg-gray-50 transition-colors">
+      Get Started
+    </a>
+  </div>
+</nav>
+      {/* Hero Section */}
+      <main className="relative h-[70vh] w-full overflow-hidden flex flex-col items-center justify-center">
+        
+        {/* Video Background */}
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover"
+        >
+          <source src="/AdobeStock_500438931.mp4" type="video/mp4" />
+        </video>
+
+        {/* Sunset Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-orange-400/60 via-pink-500/60 to-violet-700/80" />
+
+        {/* Content */}
+        <div className="relative z-10 flex flex-col items-center gap-6 px-8">
+          
+          {/* Logo */}
+          <img 
+            src="/Asset 1.png" 
+            alt="Gather" 
+            className="w-64 md:w-96"
+          />
+
+          {/* Buttons */}
+          <div className="flex flex-row gap-3">
+            <a href="/signup" className="bg-white text-violet-700 py-4 px-8 rounded-2xl font-semibold text-lg text-center hover:bg-violet-50 transition-colors shadow-lg">
+              Create a group
+            </a>
+            <a href="/login" className="bg-white/20 backdrop-blur-sm text-white py-4 px-8 rounded-2xl font-semibold text-lg text-center border border-white/40 hover:bg-white/30 transition-colors">
+              Log in
+            </a>
+          </div>
+
+          <p className="text-white/80 text-sm">
+            Have an invite code?{' '}
+            <a href="/join" className="text-white font-semibold hover:underline">
+              Join a group
+            </a>
+          </p>
+
         </div>
-      </div>
+      </main>
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
+      {/* Features Section */}
+      <section className="bg-white py-20 px-8">
+        <div className="max-w-2xl mx-auto">
+          
+          <h2 className="text-2xl font-bold text-gray-900 text-center mb-12">
+            Gather eliminates the chaos of planning with groups.
           </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+          <div className="flex flex-col gap-10">
+            
+            <div className="flex items-start gap-5">
+              <img src="/poll.png" alt="" className="w-12 h-12 flex-shrink-0" />
+              <div>
+                <p className="text-gray-900 text-lg">
+                  <span className="font-bold">Poll your friends about activities</span> — no more going back and forth in the group chat because Bob wants to go golfing and Susan wants to have dinner. Vote on plans democratically.
+                </p>
+              </div>
+            </div>
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
+            <div className="flex items-start gap-5">
+              <img src="/clipboard.png" alt="" className="w-12 h-12 flex-shrink-0" />
+              <div>
+                <p className="text-gray-900 text-lg">
+                  <span className="font-bold">Assign tasks to your friends</span> — no more arguing about who was supposed to bring the beer.
+                </p>
+              </div>
+            </div>
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  );
+            <div className="flex items-start gap-5">
+              <img src="/calendar.png" alt="" className="w-12 h-12 flex-shrink-0" />
+              <div>
+                <p className="text-gray-900 text-lg">
+                  <span className="font-bold">See a group calendar with an agenda of events</span> — no more forgetting your best friend's birthday party.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-5">
+              <img src="/thingstoknow.png" alt="" className="w-12 h-12 flex-shrink-0" />
+              <div>
+                <p className="text-gray-900 text-lg">
+                  <span className="font-bold">Things to know section</span> — give your friends quick info at a glance, i.e. "park on the street" or "bring a swimsuit and a towel!"
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-5">
+              <img src="/infinity.png" alt="" className="w-12 h-12 flex-shrink-0" />
+              <div>
+                <p className="text-gray-900 text-lg">
+                  <span className="font-bold">Set up once, use forever</span> — no more single-use event planning tools that don't save your group info.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-5">
+              <img src="/dashboard.png" alt="" className="w-12 h-12 flex-shrink-0" />
+              <div>
+                <p className="text-gray-900 text-lg">
+                  <span className="font-bold">Group dashboard</span> — see an agenda of upcoming events at a glance.
+                </p>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Bottom CTA */}
+          <div className="mt-16 text-center">
+            <a href="/signup" className="bg-violet-600 text-white py-4 px-10 rounded-2xl font-semibold text-lg hover:bg-violet-700 transition-colors shadow-lg">
+              Get started for free
+            </a>
+          </div>
+
+        </div>
+      </section>
+    </div>
+  )
 }
