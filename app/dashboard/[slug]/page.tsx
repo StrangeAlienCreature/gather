@@ -36,9 +36,18 @@ interface Event {
   attendees: string[]
 }
 
+interface LinkPreview {
+  title: string
+  description: string
+  image: string
+  domain: string
+}
+
 interface PollOption {
   label: string
   votes: string[]
+  url?: string
+  preview?: LinkPreview | null
 }
 
 interface Poll {
@@ -387,11 +396,22 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                       {poll.options?.map((opt) => {
                         const count = opt.votes?.length ?? 0
                         const pct = maxVotes > 0 ? Math.round((count / maxVotes) * 100) : 0
+                        const displayLabel = opt.preview?.title || opt.label
                         return (
                           <div key={opt.label}>
-                            <div className="flex justify-between mb-1">
-                              <span className="text-xs text-stone-900">{opt.label}</span>
-                              <span className="text-[11px] text-stone-400">{count} vote{count !== 1 ? 's' : ''}</span>
+                            <div className="flex justify-between mb-1 gap-2">
+                              {opt.preview ? (
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {opt.preview.image && (
+                                    <img src={opt.preview.image} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />
+                                  )}
+                                  <span className="text-xs text-stone-900 truncate">{displayLabel}</span>
+                                  <span className="text-[10px] text-stone-400 flex-shrink-0">{opt.preview.domain}</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-stone-900 truncate">{opt.label}</span>
+                              )}
+                              <span className="text-[11px] text-stone-400 flex-shrink-0">{count} vote{count !== 1 ? 's' : ''}</span>
                             </div>
                             <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
                               <div className={`h-full rounded-full bg-gradient-to-r ${poll.poll_type === 'availability' ? 'from-orange-400 to-pink-500' : 'from-pink-500 to-violet-600'}`} style={{ width: `${pct}%` }} />
