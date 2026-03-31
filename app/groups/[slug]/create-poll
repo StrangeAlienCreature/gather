@@ -1,0 +1,820 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
+import Image from 'next/image';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type PollType = 'activity' | 'availability';
+type Granularity = 'broad' | 'hourly';
+
+interface ActivityOption {
+  id: string;
+  text: string;
+  url: string;
+  preview: LinkPreview | null;
+  fetchingPreview: boolean;
+}
+
+interface LinkPreview {
+  title: string;
+  description: string;
+  image: string;
+  domain: string;
+}
+
+interface DateSlot {
+  date: string;      // ISO date string e.g. "2026-04-05"
+  label: string;     // e.g. "Sat Apr 5"
+  selected: boolean;
+}
+
+interface BroadTimeSlot {
+  key: string;
+  label: string;
+  range: string;
+  selected: boolean;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function generateId() {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+function isUrl(text: string) {
+  try {
+    const url = new URL(text);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function getNextDates(count: number): DateSlot[] {
+  const slots: DateSlot[] = [];
+  const now = new Date();
+  let d = new Date(now);
+  d.setDate(d.getDate() + 1);
+  while (slots.length < count) {
+    const day = d.getDay();
+    if (day === 0 || day === 6) {
+      const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      slots.push({
+        date: d.toISOString().split('T')[0],
+        label,
+        selected: slots.length < 2,
+      });
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return slots;
+}
+
+const BROAD_SLOTS: BroadTimeSlot[] = [
+  { key: 'morning',   label: 'Morning',   range: '8am – 12pm', selected: true },
+  { key: 'afternoon', label: 'Afternoon', range: '12pm – 5pm', selected: true },
+  { key: 'evening',   label: 'Evening',   range: '5pm – 10pm', selected: false },
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function CreatePollPage() {
+  const { slug } = useParams() as { slug: string };
+  const router = useRouter();
+  const supabase = createClient();
+
+  // ── Auth / group state
+  const [userId, setUserId] = useState<string | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  // ── Page flow
+  const [step, setStep] = useState<'form' | 'share'>('form');
+  const [createdPollId, setCreatedPollId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // ── Poll type
+  const [pollType, setPollType] = useState<PollType>('activity');
+
+  // ── Shared fields
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [closesOn, setClosesOn] = useState('');
+
+  // ── Activity poll fields
+  const [options, setOptions] = useState<ActivityOption[]>([
+    { id: generateId(), text: '', url: '', preview: null, fetchingPreview: false },
+    { id: generateId(), text: '', url: '', preview: null, fetchingPreview: false },
+  ]);
+  const [allowMultiple, setAllowMultiple] = useState(true);
+  const [isAnonymous, setIsAnonymous] = useState(false);
+
+  // ── Availability poll fields
+  const [dateSlots, setDateSlots] = useState<DateSlot[]>(getNextDates(6));
+  const [granularity, setGranularity] = useState<Granularity>('broad');
+  const [broadSlots, setBroadSlots] = useState<BroadTimeSlot[]>(BROAD_SLOTS);
+  const [showAggregate, setShowAggregate] = useState(true);
+  const [membersCanUpdate, setMembersCanUpdate] = useState(true);
+
+  // ── Link preview debounce refs
+  const previewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // ── Load user + group
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push('/login'); return; }
+      setUserId(user.id);
+
+      const { data: group } = await supabase
+        .from('groups')
+        .select('id, name, members')
+        .eq('slug', slug)
+        .single();
+
+      if (!group) { router.push('/'); return; }
+
+      const members: string[] = group.members || [];
+      if (!members.includes(user.id)) { router.push('/'); return; }
+
+      setGroupId(group.id);
+      setGroupName(group.name);
+      setLoading(false);
+    }
+    load();
+  }, [slug]);
+
+  // ─── Link preview fetch ──────────────────────────────────────────────────────
+
+  async function fetchLinkPreview(optionId: string, url: string) {
+    setOptions(prev => prev.map(o =>
+      o.id === optionId ? { ...o, fetchingPreview: true } : o
+    ));
+    try {
+      // Use a free meta-scraping proxy. Replace with your own endpoint if needed.
+      const res = await fetch(
+        `https://api.microlink.io/?url=${encodeURIComponent(url)}&screenshot=false`
+      );
+      const json = await res.json();
+      if (json.status === 'success') {
+        const preview: LinkPreview = {
+          title: json.data.title || '',
+          description: json.data.description || '',
+          image: json.data.image?.url || '',
+          domain: new URL(url).hostname.replace('www.', ''),
+        };
+        setOptions(prev => prev.map(o =>
+          o.id === optionId ? { ...o, preview, fetchingPreview: false } : o
+        ));
+      } else {
+        setOptions(prev => prev.map(o =>
+          o.id === optionId ? { ...o, preview: null, fetchingPreview: false } : o
+        ));
+      }
+    } catch {
+      setOptions(prev => prev.map(o =>
+        o.id === optionId ? { ...o, preview: null, fetchingPreview: false } : o
+      ));
+    }
+  }
+
+  function handleOptionChange(id: string, value: string) {
+    setOptions(prev => prev.map(o => o.id === id ? { ...o, text: value, url: isUrl(value) ? value : o.url } : o));
+
+    if (isUrl(value)) {
+      clearTimeout(previewTimers.current[id]);
+      previewTimers.current[id] = setTimeout(() => {
+        setOptions(prev => prev.map(o => o.id === id ? { ...o, url: value } : o));
+        fetchLinkPreview(id, value);
+      }, 700);
+    } else {
+      clearTimeout(previewTimers.current[id]);
+      setOptions(prev => prev.map(o => o.id === id ? { ...o, url: '', preview: null } : o));
+    }
+  }
+
+  function addOption() {
+    setOptions(prev => [...prev, { id: generateId(), text: '', url: '', preview: null, fetchingPreview: false }]);
+  }
+
+  function removeOption(id: string) {
+    if (options.length <= 2) return;
+    setOptions(prev => prev.filter(o => o.id !== id));
+  }
+
+  // ─── Date / time slot toggles ────────────────────────────────────────────────
+
+  function toggleDate(date: string) {
+    setDateSlots(prev => prev.map(d => d.date === date ? { ...d, selected: !d.selected } : d));
+  }
+
+  function toggleBroadSlot(key: string) {
+    setBroadSlots(prev => prev.map(s => s.key === key ? { ...s, selected: !s.selected } : s));
+  }
+
+  // ─── Validation ──────────────────────────────────────────────────────────────
+
+  function validate(): string {
+    if (!title.trim()) return 'Please enter a question or title for your poll.';
+
+    if (pollType === 'activity') {
+      const filled = options.filter(o => o.text.trim());
+      if (filled.length < 2) return 'Add at least two options for your group to vote on.';
+    }
+
+    if (pollType === 'availability') {
+      if (!dateSlots.some(d => d.selected)) return 'Select at least one date to ask about.';
+      if (granularity === 'broad' && !broadSlots.some(s => s.selected)) return 'Select at least one time of day.';
+    }
+
+    return '';
+  }
+
+  // ─── Submit ──────────────────────────────────────────────────────────────────
+
+  async function handleSubmit() {
+    const err = validate();
+    if (err) { setError(err); return; }
+    setError('');
+    setSubmitting(true);
+
+    try {
+      let pollData: Record<string, unknown> = {
+        group_id: groupId,
+        title: title.trim(),
+        description: description.trim() || null,
+        created_by: userId,
+        status: 'active',
+        poll_type: pollType,
+        allow_multiple_votes: pollType === 'activity' ? allowMultiple : false,
+        is_anonymous: pollType === 'activity' ? isAnonymous : false,
+        expiry_date: closesOn || null,
+        created_date: new Date().toISOString(),
+      };
+
+      if (pollType === 'activity') {
+        const filledOptions = options
+          .filter(o => o.text.trim())
+          .map(o => ({
+            id: generateId(),
+            text: o.text.trim(),
+            url: o.url || null,
+            preview: o.preview || null,
+          }));
+        pollData.options = filledOptions;
+      }
+
+      if (pollType === 'availability') {
+        const selectedDates = dateSlots.filter(d => d.selected).map(d => d.date);
+        const selectedTimes = granularity === 'broad'
+          ? broadSlots.filter(s => s.selected).map(s => s.key)
+          : 'hourly';
+
+        pollData.options = {
+          dates: selectedDates,
+          granularity,
+          times: selectedTimes,
+          show_aggregate_only: showAggregate,
+          members_can_update: membersCanUpdate,
+        };
+      }
+
+      const { data, error: insertError } = await supabase
+        .from('polls')
+        .insert(pollData)
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+
+      setCreatedPollId(data.id);
+      setStep('share');
+    } catch (e: unknown) {
+      console.error(e);
+      setError('Something went wrong creating your poll. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // ─── Share screen helpers ─────────────────────────────────────────────────────
+
+  const shareMessage = `Hey everyone! I just created a ${pollType === 'activity' ? 'poll' : 'availability poll'} on Gather for "${title}". Head to the dashboard to vote! 🗳️`;
+
+  function handleCopy() {
+    navigator.clipboard.writeText(shareMessage);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
+
+  // ─── Loading screen ───────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-400">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Share / nudge screen ─────────────────────────────────────────────────────
+
+  if (step === 'share') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Navbar */}
+        <nav className="bg-white border-b border-gray-100 h-14 flex items-center px-6">
+          <div className="max-w-2xl mx-auto w-full flex items-center justify-between">
+            <span className="font-bold text-gray-800 text-lg tracking-tight">
+              G<span className="bg-gradient-to-r from-orange-400 via-pink-500 to-violet-700 bg-clip-text text-transparent">ather</span>
+            </span>
+          </div>
+        </nav>
+
+        <div className="max-w-lg mx-auto px-4 py-16 text-center">
+          {/* Success icon */}
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-400 via-pink-500 to-violet-700 flex items-center justify-center mx-auto mb-6">
+            <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+
+          <h1 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'var(--font-serif)' }}>
+            Poll's live!
+          </h1>
+          <p className="text-gray-500 text-sm mb-10">
+            Let your group know it's time to vote.
+          </p>
+
+          {/* Pre-written message card */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 text-left mb-4 shadow-sm">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Your message</p>
+            <p className="text-sm text-gray-700 leading-relaxed mb-4">{shareMessage}</p>
+            <button
+              onClick={handleCopy}
+              className="w-full py-3 rounded-xl border-2 text-sm font-semibold transition-all"
+              style={copied ? {
+                background: 'linear-gradient(135deg, #fb923c, #ec4899, #7c3aed)',
+                color: 'white',
+                borderColor: 'transparent',
+              } : {
+                background: 'white',
+                color: '#7c3aed',
+                borderColor: '#7c3aed',
+              }}
+            >
+              {copied ? '✓ Copied to clipboard!' : 'Copy message'}
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-400 mb-10">
+            Paste it in your group chat, iMessage, wherever your crew lives.
+          </p>
+
+          {/* CTA */}
+          <button
+            onClick={() => router.push(`/groups/${slug}`)}
+            className="w-full py-4 rounded-2xl font-bold text-white text-base"
+            style={{ background: 'linear-gradient(135deg, #fb923c, #ec4899, #7c3aed)' }}
+          >
+            Go to dashboard →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Main form ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+
+      {/* Navbar */}
+      <nav className="bg-white border-b border-gray-100 h-14 flex items-center px-6 sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto w-full flex items-center justify-between">
+          <button
+            onClick={() => router.push(`/groups/${slug}`)}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-violet-700 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to {groupName}
+          </button>
+          <span className="font-bold text-gray-800 text-lg tracking-tight">
+            G<span className="bg-gradient-to-r from-orange-400 via-pink-500 to-violet-700 bg-clip-text text-transparent">ather</span>
+          </span>
+          <span className="w-24" />
+        </div>
+      </nav>
+
+      <div className="max-w-2xl mx-auto px-4 py-8 pb-16">
+
+        {/* Header */}
+        <div className="mb-7">
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight" style={{ fontFamily: 'var(--font-serif)' }}>
+            Create a poll
+          </h1>
+          <p className="text-sm text-gray-400 mt-1">Ask your group a question and collect votes</p>
+        </div>
+
+        {/* Poll type toggle */}
+        <div className="grid grid-cols-2 gap-3 mb-7">
+          {(['activity', 'availability'] as PollType[]).map(type => (
+            <button
+              key={type}
+              onClick={() => setPollType(type)}
+              className="relative text-left rounded-2xl border-2 p-4 transition-all"
+              style={{
+                borderColor: pollType === type ? '#7c3aed' : '#e5e7eb',
+                background: pollType === type ? '#faf9ff' : 'white',
+              }}
+            >
+              {pollType === type && (
+                <span
+                  className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center"
+                  style={{ background: 'linear-gradient(135deg, #fb923c, #ec4899, #7c3aed)' }}
+                >
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
+              )}
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-2.5"
+                style={{ background: type === 'activity' ? '#fff7ed' : '#f0fdf4' }}
+              >
+                {type === 'activity' ? '🗳️' : '📅'}
+              </div>
+              <div className="text-sm font-semibold text-gray-800">
+                {type === 'activity' ? 'Activity poll' : 'Availability poll'}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5 leading-snug">
+                {type === 'activity'
+                  ? 'Vote on where to go or what to do'
+                  : 'Find when everyone\'s free to meet'}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* ── ACTIVITY POLL ─────────────────────────────────────────────────────── */}
+        {pollType === 'activity' && (
+          <div className="space-y-4">
+
+            {/* Details */}
+            <section className="bg-white rounded-2xl p-5 border border-gray-100">
+              <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-4">Poll details</p>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Question</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="e.g. Where should we go for Jamie's birthday?"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Description <span className="font-normal text-gray-300">· optional</span>
+                </label>
+                <textarea
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  placeholder="Add any context for your group..."
+                  rows={3}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors resize-none"
+                />
+              </div>
+            </section>
+
+            {/* Options */}
+            <section className="bg-white rounded-2xl p-5 border border-gray-100">
+              <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-4">Options</p>
+
+              <div className="space-y-3">
+                {options.map((opt, i) => (
+                  <div key={opt.id} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {/* Drag handle visual */}
+                      <svg className="w-4 h-4 text-gray-300 flex-shrink-0 cursor-grab" fill="currentColor" viewBox="0 0 20 20">
+                        <circle cx="7" cy="6" r="1.2" /><circle cx="13" cy="6" r="1.2" />
+                        <circle cx="7" cy="10" r="1.2" /><circle cx="13" cy="10" r="1.2" />
+                        <circle cx="7" cy="14" r="1.2" /><circle cx="13" cy="14" r="1.2" />
+                      </svg>
+
+                      <input
+                        type="text"
+                        value={opt.text}
+                        onChange={e => handleOptionChange(opt.id, e.target.value)}
+                        placeholder={isUrl(opt.text) ? 'Paste a URL or type an option…' : `Option ${i + 1}${i < 2 ? '' : ' (optional)'}`}
+                        className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors"
+                      />
+
+                      <button
+                        onClick={() => removeOption(opt.id)}
+                        disabled={options.length <= 2}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 transition-opacity"
+                        style={{
+                          background: options.length > 2 ? '#fee2e2' : '#f3f4f6',
+                          color: options.length > 2 ? '#ef4444' : '#d1d5db',
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    {/* Link preview */}
+                    {opt.fetchingPreview && (
+                      <div className="ml-6 bg-violet-50 border border-violet-100 rounded-xl px-4 py-3 flex items-center gap-2">
+                        <div className="w-3 h-3 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+                        <span className="text-xs text-violet-400">Fetching preview…</span>
+                      </div>
+                    )}
+
+                    {opt.preview && !opt.fetchingPreview && (
+                      <div className="ml-6 bg-violet-50 border border-violet-100 rounded-xl px-4 py-3 flex items-center gap-3">
+                        {opt.preview.image ? (
+                          <img
+                            src={opt.preview.image}
+                            alt=""
+                            className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-orange-200 to-violet-300 flex-shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 truncate">{opt.preview.title}</p>
+                          <p className="text-xs text-gray-400 truncate mt-0.5">{opt.preview.domain}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={addOption}
+                className="mt-3 w-full border-2 border-dashed border-gray-200 rounded-xl py-2.5 text-sm text-gray-400 hover:border-violet-400 hover:text-violet-600 transition-colors"
+              >
+                + Add another option
+              </button>
+
+              <p className="text-xs text-gray-300 mt-2.5">
+                Tip: paste a URL into any option field to get a rich preview
+              </p>
+            </section>
+
+            {/* Settings */}
+            <section className="bg-white rounded-2xl p-5 border border-gray-100">
+              <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-3">Settings</p>
+
+              <Toggle
+                label="Allow multiple votes"
+                sub="Members can vote for more than one option"
+                value={allowMultiple}
+                onChange={setAllowMultiple}
+              />
+              <Toggle
+                label="Anonymous votes"
+                sub="Names won't be shown next to votes"
+                value={isAnonymous}
+                onChange={setIsAnonymous}
+              />
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Closes on <span className="font-normal text-gray-300">· optional</span>
+                </label>
+                <input
+                  type="date"
+                  value={closesOn}
+                  onChange={e => setClosesOn(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-500 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors"
+                />
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* ── AVAILABILITY POLL ─────────────────────────────────────────────────── */}
+        {pollType === 'availability' && (
+          <div className="space-y-4">
+
+            {/* Details */}
+            <section className="bg-white rounded-2xl p-5 border border-gray-100">
+              <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-4">Poll details</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">What's this for?</label>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="e.g. Movie night, spring hiking trip…"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors"
+              />
+            </section>
+
+            {/* Dates */}
+            <section className="bg-white rounded-2xl p-5 border border-gray-100">
+              <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-1">Dates to check</p>
+              <p className="text-xs text-gray-400 mb-4">Pick the dates you want to ask about. Members will mark when they're free.</p>
+
+              <div className="flex flex-wrap gap-2">
+                {dateSlots.map(d => (
+                  <button
+                    key={d.date}
+                    onClick={() => toggleDate(d.date)}
+                    className="px-3.5 py-1.5 rounded-full border-2 text-xs font-semibold transition-all"
+                    style={{
+                      borderColor: d.selected ? '#7c3aed' : '#e5e7eb',
+                      color: d.selected ? '#7c3aed' : '#9ca3af',
+                      background: d.selected ? '#faf9ff' : 'white',
+                    }}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+                <button
+                  className="px-3.5 py-1.5 rounded-full border-2 border-dashed border-gray-200 text-xs text-gray-400 hover:border-violet-400 hover:text-violet-600 transition-colors"
+                  onClick={() => {
+                    // Extend the date list by another week's worth of weekends
+                    const last = dateSlots[dateSlots.length - 1];
+                    const fromDate = new Date(last.date);
+                    fromDate.setDate(fromDate.getDate() + 1);
+                    const extras: DateSlot[] = [];
+                    while (extras.length < 2) {
+                      const day = fromDate.getDay();
+                      if (day === 0 || day === 6) {
+                        const label = fromDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                        extras.push({ date: fromDate.toISOString().split('T')[0], label, selected: false });
+                      }
+                      fromDate.setDate(fromDate.getDate() + 1);
+                    }
+                    setDateSlots(prev => [...prev, ...extras]);
+                  }}
+                >
+                  + More dates
+                </button>
+              </div>
+            </section>
+
+            {/* Granularity */}
+            <section className="bg-white rounded-2xl p-5 border border-gray-100">
+              <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-1">Time granularity</p>
+              <p className="text-xs text-gray-400 mb-4">Choose how detailed the time slots should be.</p>
+
+              {/* Pill toggle */}
+              <div className="flex gap-2 mb-5">
+                {(['broad', 'hourly'] as Granularity[]).map(g => (
+                  <button
+                    key={g}
+                    onClick={() => setGranularity(g)}
+                    className="px-5 py-1.5 rounded-full border-2 text-xs font-semibold transition-all"
+                    style={{
+                      borderColor: granularity === g ? '#7c3aed' : '#e5e7eb',
+                      color: granularity === g ? '#7c3aed' : '#9ca3af',
+                      background: granularity === g ? '#faf9ff' : 'white',
+                    }}
+                  >
+                    {g.charAt(0).toUpperCase() + g.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {granularity === 'broad' ? (
+                <div className="grid grid-cols-3 gap-3">
+                  {broadSlots.map(slot => (
+                    <button
+                      key={slot.key}
+                      onClick={() => toggleBroadSlot(slot.key)}
+                      className="rounded-xl border-2 py-3 text-center transition-all"
+                      style={{
+                        borderColor: slot.selected ? '#7c3aed' : '#e5e7eb',
+                        background: slot.selected ? '#faf9ff' : 'white',
+                      }}
+                    >
+                      <div className="text-xs font-semibold text-gray-700">{slot.label}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">{slot.range}</div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-xl px-4 py-3">
+                  <p className="text-xs text-gray-400 text-center leading-relaxed">
+                    Members will pick specific hours on each selected date when they vote.
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {/* Settings */}
+            <section className="bg-white rounded-2xl p-5 border border-gray-100">
+              <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-3">Settings</p>
+
+              <Toggle
+                label="Show aggregate only"
+                sub={'e.g. "8/10 free Saturday" — no individual names'}
+                value={showAggregate}
+                onChange={setShowAggregate}
+              />
+              <Toggle
+                label="Members can update"
+                sub="Allow availability changes after first submission"
+                value={membersCanUpdate}
+                onChange={setMembersCanUpdate}
+              />
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Closes on <span className="font-normal text-gray-300">· optional</span>
+                </label>
+                <input
+                  type="date"
+                  value={closesOn}
+                  onChange={e => setClosesOn(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-500 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors"
+                />
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* Error message */}
+        {error && (
+          <div className="mt-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+            <p className="text-sm text-red-500">{error}</p>
+          </div>
+        )}
+
+        {/* Submit row */}
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={() => router.push(`/groups/${slug}`)}
+            className="px-6 py-3.5 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-500 hover:border-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-white transition-opacity disabled:opacity-60"
+            style={{ background: 'linear-gradient(135deg, #fb923c, #ec4899, #7c3aed)' }}
+          >
+            {submitting ? 'Creating…' : 'Launch poll →'}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Toggle sub-component ─────────────────────────────────────────────────────
+
+function Toggle({
+  label,
+  sub,
+  value,
+  onChange,
+}: {
+  label: string;
+  sub: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between py-3 border-b border-gray-50 last:border-none cursor-pointer"
+      onClick={() => onChange(!value)}
+    >
+      <div>
+        <p className="text-sm font-medium text-gray-700">{label}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+      </div>
+      <div
+        className="relative w-9 h-5 rounded-full flex-shrink-0 ml-4 transition-all duration-200"
+        style={{ background: value ? 'linear-gradient(90deg, #ec4899, #7c3aed)' : '#e5e7eb' }}
+      >
+        <div
+          className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200"
+          style={{ left: value ? '18px' : '2px' }}
+        />
+      </div>
+    </div>
+  );
+}

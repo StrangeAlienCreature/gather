@@ -164,6 +164,10 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
     return members.find((m) => m.id === userId)?.display_name ?? 'Member'
   }
 
+  function goToCreatePoll() {
+    router.push(`/groups/${slug}/create-poll`)
+  }
+
   if (loading || !group) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -359,7 +363,12 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-stone-900">Active polls</h2>
-              <span className="text-xs font-semibold text-orange-600 cursor-pointer">+ Create poll</span>
+              <button
+                onClick={goToCreatePoll}
+                className="text-xs font-semibold text-orange-600 hover:text-orange-700 transition-colors"
+              >
+                + Create poll
+              </button>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {polls.map((poll) => {
@@ -415,8 +424,12 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
 
         {/* Action buttons */}
         <div className="grid grid-cols-3 gap-3 pb-4">
-          {['＋ Create event', '📊 Create poll', '🔗 Share invite'].map((label) => (
-            <button key={label} className="relative overflow-hidden bg-stone-900 text-white py-3 rounded-2xl text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 group">
+          {[
+            { label: '＋ Create event', action: () => {} },
+            { label: '📊 Create poll',  action: goToCreatePoll },
+            { label: '🔗 Share invite', action: () => {} },
+          ].map(({ label, action }) => (
+            <button key={label} onClick={action} className="relative overflow-hidden bg-stone-900 text-white py-3 rounded-2xl text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 group">
               <span className="absolute inset-0 bg-gradient-to-br from-orange-400 via-pink-500 to-violet-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               <span className="relative z-10">{label}</span>
             </button>
