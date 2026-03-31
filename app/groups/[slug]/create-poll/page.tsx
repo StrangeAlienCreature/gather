@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -246,7 +247,6 @@ export default function CreatePollPage() {
       let pollData: Record<string, unknown> = {
         group_id: groupId,
         title: title.trim(),
-        description: description.trim() || null,
         created_by: userId,
         status: 'active',
         poll_type: pollType,
@@ -260,8 +260,8 @@ export default function CreatePollPage() {
         const filledOptions = options
           .filter(o => o.text.trim())
           .map(o => ({
-            id: generateId(),
-            text: o.text.trim(),
+            label: o.text.trim(),
+            votes: [],
             url: o.url || null,
             preview: o.preview || null,
           }));
@@ -274,9 +274,9 @@ export default function CreatePollPage() {
           ? broadSlots.filter(s => s.selected).map(s => s.key)
           : 'hourly';
 
+        pollData.granularity = granularity;
         pollData.options = {
           dates: selectedDates,
-          granularity,
           times: selectedTimes,
           show_aggregate_only: showAggregate,
           members_can_update: membersCanUpdate,
@@ -332,9 +332,7 @@ export default function CreatePollPage() {
         {/* Navbar */}
         <nav className="bg-white border-b border-gray-100 h-14 flex items-center px-6">
           <div className="max-w-2xl mx-auto w-full flex items-center justify-between">
-            <span className="font-bold text-gray-800 text-lg tracking-tight">
-              G<span className="bg-gradient-to-r from-orange-400 via-pink-500 to-violet-700 bg-clip-text text-transparent">ather</span>
-            </span>
+            <Image src="/Asset 2.png" alt="Gather" width={96} height={32} className="w-24 object-contain" />
           </div>
         </nav>
 
@@ -380,7 +378,7 @@ export default function CreatePollPage() {
 
           {/* CTA */}
           <button
-            onClick={() => router.push(`/groups/${slug}`)}
+            onClick={() => router.push(`/dashboard/${slug}`)}
             className="w-full py-4 rounded-2xl font-bold text-white text-base"
             style={{ background: 'linear-gradient(135deg, #fb923c, #ec4899, #7c3aed)' }}
           >
@@ -400,7 +398,7 @@ export default function CreatePollPage() {
       <nav className="bg-white border-b border-gray-100 h-14 flex items-center px-6 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto w-full flex items-center justify-between">
           <button
-            onClick={() => router.push(`/groups/${slug}`)}
+            onClick={() => router.push(`/dashboard/${slug}`)}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-violet-700 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -762,7 +760,7 @@ export default function CreatePollPage() {
         {/* Submit row */}
         <div className="flex gap-3 mt-6">
           <button
-            onClick={() => router.push(`/groups/${slug}`)}
+            onClick={() => router.push(`/dashboard/${slug}`)}
             className="px-6 py-3.5 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-500 hover:border-gray-300 transition-colors"
           >
             Cancel
