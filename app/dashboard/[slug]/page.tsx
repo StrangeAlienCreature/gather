@@ -169,6 +169,33 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
   const upcomingEvents = events.length
   const pendingVotes = polls.filter((p) => currentUserId && !(p.voters ?? []).includes(currentUserId)).length
 
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
+  const [votingPollId, setVotingPollId] = useState<string | null>(null)
+
+  async function handleVote(pollId: string, optionLabel: string) {
+    if (!currentUserId || votingPollId) return
+    setVotingPollId(pollId)
+    const { data: pollData } = await supabase
+      .from('polls')
+      .select('options, voters')
+      .eq('id', pollId)
+      .single()
+    if (pollData) {
+      const updatedOptions = (pollData.options as PollOption[]).map((opt) =>
+        opt.label === optionLabel
+          ? { ...opt, votes: [...(opt.votes ?? []), currentUserId] }
+          : opt
+      )
+      await supabase
+        .from('polls')
+        .update({ options: updatedOptions, voters: [...(pollData.voters ?? []), currentUserId] })
+        .eq('id', pollId)
+      await loadGroupData(currentUserId)
+    }
+    setVotingPollId(null)
+    setSelectedOptions((prev: Record<string, string>) => { const n = { ...prev }; delete n[pollId]; return n })
+  }
+
   function getMemberName(userId: string) {
     return members.find((m) => m.id === userId)?.display_name ?? 'Member'
   }
@@ -381,50 +408,83 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
             </div>
             <div className="grid grid-cols-2 gap-3">
               {polls.map((poll) => {
-                const maxVotes = Math.max(...(poll.options?.map((o) => o.votes?.length ?? 0) ?? [1]), 1)
+                const maxVotes = Math.max(...(poll.options?.map((o) => o.votes?.length ?? 0) ?? [0]), 0)
                 const hasVoted = currentUserId && (poll.voters ?? []).includes(currentUserId)
+                const selected = selectedOptions[poll.id]
+                const isSubmitting = votingPollId === poll.id
                 return (
-                  <div key={poll.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+                  <div key={poll.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden flex flex-col">
+                    {/* Header */}
                     <div className="flex items-center justify-between px-4 pt-3 pb-2">
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide ${poll.poll_type === 'availability' ? 'bg-gradient-to-r from-orange-50 to-pink-50 text-orange-700 border border-orange-200' : 'bg-gradient-to-r from-pink-50 to-violet-50 text-violet-700 border border-violet-200'}`}>
                         {poll.poll_type}
                       </span>
                       <span className="text-xs text-stone-400">{poll.voters?.length ?? 0}/{group.members.length} voted</span>
                     </div>
-                    <p className="text-sm font-semibold text-stone-900 px-4 pb-2 leading-snug">{poll.title}</p>
-                    <div className="px-4 pb-3 space-y-2">
+                    <p className="text-sm font-semibold text-stone-900 px-4 pb-3 leading-snug">{poll.title}</p>
+
+                    {/* Option cards */}
+                    <div className="px-3 pb-3 space-y-2 flex-1">
                       {poll.options?.map((opt) => {
                         const count = opt.votes?.length ?? 0
                         const pct = maxVotes > 0 ? Math.round((count / maxVotes) * 100) : 0
-                        const displayLabel = opt.preview?.title || opt.label
+                        const isSelected = selected === opt.label
+                        const isWinner = hasVoted && maxVotes > 0 && count === maxVotes
                         return (
-                          <div key={opt.label}>
-                            <div className="flex justify-between mb-1 gap-2">
-                              {opt.preview ? (
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  {opt.preview.image && (
-                                    <img src={opt.preview.image} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />
-                                  )}
-                                  <span className="text-xs text-stone-900 truncate">{displayLabel}</span>
-                                  <span className="text-[10px] text-stone-400 flex-shrink-0">{opt.preview.domain}</span>
+                          <button
+                            key={opt.label}
+                            onClick={() => !hasVoted && setSelectedOptions((prev: Record<string, string>) => ({ ...prev, [poll.id]: opt.label }))}
+                            disabled={!!hasVoted}
+                            className={`w-full text-left rounded-xl border-2 overflow-hidden transition-all ${
+                              isSelected ? 'border-violet-500 bg-violet-50' :
+                              isWinner ? 'border-orange-300 bg-orange-50' :
+                              'border-stone-100 bg-stone-50'
+                            } ${!hasVoted ? 'hover:border-stone-300 cursor-pointer' : 'cursor-default'}`}
+                          >
+                            {opt.preview ? (
+                              <div className="flex items-center gap-2.5 p-2.5">
+                                {opt.preview.image ? (
+                                  <img src={opt.preview.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-200 to-violet-300 flex-shrink-0" />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-semibold text-stone-900 line-clamp-2 leading-tight">{opt.preview.title || opt.label}</p>
+                                  <p className="text-[10px] text-stone-400 mt-0.5">{opt.preview.domain}</p>
                                 </div>
-                              ) : (
-                                <span className="text-xs text-stone-900 truncate">{opt.label}</span>
-                              )}
-                              <span className="text-[11px] text-stone-400 flex-shrink-0">{count} vote{count !== 1 ? 's' : ''}</span>
-                            </div>
-                            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full bg-gradient-to-r ${poll.poll_type === 'availability' ? 'from-orange-400 to-pink-500' : 'from-pink-500 to-violet-600'}`} style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
+                                {hasVoted && <span className="text-[10px] font-bold text-stone-400 flex-shrink-0">{count}</span>}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between px-3 py-2.5 gap-2">
+                                <span className="text-xs text-stone-900 leading-snug">{opt.label}</span>
+                                {hasVoted && <span className="text-[10px] font-bold text-stone-400 flex-shrink-0">{count}</span>}
+                              </div>
+                            )}
+                            {hasVoted && pct > 0 && (
+                              <div className="h-1 bg-stone-100">
+                                <div className={`h-full bg-gradient-to-r ${isWinner ? 'from-orange-400 to-pink-500' : 'from-stone-300 to-stone-300'}`} style={{ width: `${pct}%` }} />
+                              </div>
+                            )}
+                          </button>
                         )
                       })}
                     </div>
-                    <div className="flex items-center justify-between px-4 py-2.5 border-t border-stone-100">
-                      <span className="text-[11px] text-stone-400">{group.members.length - (poll.voters?.length ?? 0)} haven&apos;t voted</span>
-                      <button disabled={!!hasVoted} className="text-xs font-semibold text-white bg-gradient-to-r from-orange-400 to-pink-500 px-4 py-1.5 rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
-                        {hasVoted ? 'Voted ✓' : 'Vote'}
-                      </button>
+
+                    {/* Footer */}
+                    <div className="px-3 pb-3">
+                      {!hasVoted ? (
+                        <button
+                          onClick={() => selected && handleVote(poll.id, selected)}
+                          disabled={!selected || isSubmitting}
+                          className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-400 to-pink-500 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {isSubmitting ? 'Submitting…' : selected ? 'Confirm vote →' : 'Pick an option'}
+                        </button>
+                      ) : (
+                        <div className="text-center text-[11px] text-stone-400">
+                          Voted ✓ · {group.members.length - (poll.voters?.length ?? 0)} still pending
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
