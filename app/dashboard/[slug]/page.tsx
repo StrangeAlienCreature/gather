@@ -101,7 +101,6 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
   const router = useRouter()
   const { slug } = params
 
-  const [authChecked, setAuthChecked] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [group, setGroup] = useState<Group | null>(null)
@@ -114,15 +113,18 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
   const calMonthLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' })
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
         router.push('/login')
         return
       }
-      if (!authChecked) {
-        setAuthChecked(true)
-        setCurrentUserId(session.user.id)
-        await loadGroupData(session.user.id)
+      setCurrentUserId(session.user.id)
+      loadGroupData(session.user.id)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        router.push('/login')
       }
     })
     return () => subscription.unsubscribe()
