@@ -13,9 +13,12 @@ type Granularity = 'broad' | 'hourly';
 interface ActivityOption {
   id: string;
   text: string;
+  description: string;
+  cost: string;
   url: string;
   preview: LinkPreview | null;
   fetchingPreview: boolean;
+  expanded: boolean;
 }
 
 interface LinkPreview {
@@ -108,8 +111,8 @@ export default function CreatePollPage() {
 
   // ── Activity poll fields
   const [options, setOptions] = useState<ActivityOption[]>([
-    { id: generateId(), text: '', url: '', preview: null, fetchingPreview: false },
-    { id: generateId(), text: '', url: '', preview: null, fetchingPreview: false },
+    { id: generateId(), text: '', description: '', cost: '', url: '', preview: null, fetchingPreview: false, expanded: false },
+    { id: generateId(), text: '', description: '', cost: '', url: '', preview: null, fetchingPreview: false, expanded: false },
   ]);
   const [allowMultiple, setAllowMultiple] = useState(true);
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -184,22 +187,21 @@ export default function CreatePollPage() {
   }
 
   function handleOptionChange(id: string, value: string) {
-    setOptions(prev => prev.map(o => o.id === id ? { ...o, text: value, url: isUrl(value) ? value : o.url } : o));
+    setOptions(prev => prev.map(o => o.id === id ? { ...o, text: value } : o));
+  }
 
+  function handleUrlChange(id: string, value: string) {
+    setOptions((prev: ActivityOption[]) => prev.map(o => o.id === id ? { ...o, url: value } : o));
+    clearTimeout(previewTimers.current[id]);
     if (isUrl(value)) {
-      clearTimeout(previewTimers.current[id]);
-      previewTimers.current[id] = setTimeout(() => {
-        setOptions(prev => prev.map(o => o.id === id ? { ...o, url: value } : o));
-        fetchLinkPreview(id, value);
-      }, 700);
+      previewTimers.current[id] = setTimeout(() => fetchLinkPreview(id, value), 700);
     } else {
-      clearTimeout(previewTimers.current[id]);
-      setOptions(prev => prev.map(o => o.id === id ? { ...o, url: '', preview: null } : o));
+      setOptions((prev: ActivityOption[]) => prev.map(o => o.id === id ? { ...o, preview: null } : o));
     }
   }
 
   function addOption() {
-    setOptions(prev => [...prev, { id: generateId(), text: '', url: '', preview: null, fetchingPreview: false }]);
+    setOptions(prev => [...prev, { id: generateId(), text: '', description: '', cost: '', url: '', preview: null, fetchingPreview: false, expanded: false }]);
   }
 
   function removeOption(id: string) {
@@ -262,6 +264,8 @@ export default function CreatePollPage() {
           .map(o => ({
             label: o.text.trim(),
             votes: [],
+            description: o.description.trim() || null,
+            cost: o.cost.trim() || null,
             url: o.url || null,
             preview: o.preview || null,
           }));
@@ -502,27 +506,25 @@ export default function CreatePollPage() {
 
               <div className="space-y-3">
                 {options.map((opt, i) => (
-                  <div key={opt.id} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      {/* Drag handle visual */}
+                  <div key={opt.id} className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                    {/* Title row */}
+                    <div className="flex items-center gap-2 px-3 pt-3 pb-2">
                       <svg className="w-4 h-4 text-gray-300 flex-shrink-0 cursor-grab" fill="currentColor" viewBox="0 0 20 20">
                         <circle cx="7" cy="6" r="1.2" /><circle cx="13" cy="6" r="1.2" />
                         <circle cx="7" cy="10" r="1.2" /><circle cx="13" cy="10" r="1.2" />
                         <circle cx="7" cy="14" r="1.2" /><circle cx="13" cy="14" r="1.2" />
                       </svg>
-
                       <input
                         type="text"
                         value={opt.text}
                         onChange={e => handleOptionChange(opt.id, e.target.value)}
-                        placeholder={isUrl(opt.text) ? 'Paste a URL or type an option…' : `Option ${i + 1}${i < 2 ? '' : ' (optional)'}`}
-                        className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors"
+                        placeholder={`Option ${i + 1} name${i >= 2 ? ' (optional)' : ''}`}
+                        className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-300 focus:outline-none"
                       />
-
                       <button
                         onClick={() => removeOption(opt.id)}
                         disabled={options.length <= 2}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 transition-opacity"
+                        className="w-6 h-6 rounded-md flex items-center justify-center text-sm font-bold flex-shrink-0 transition-opacity"
                         style={{
                           background: options.length > 2 ? '#fee2e2' : '#f3f4f6',
                           color: options.length > 2 ? '#ef4444' : '#d1d5db',
@@ -532,29 +534,68 @@ export default function CreatePollPage() {
                       </button>
                     </div>
 
-                    {/* Link preview */}
-                    {opt.fetchingPreview && (
-                      <div className="ml-6 bg-violet-50 border border-violet-100 rounded-xl px-4 py-3 flex items-center gap-2">
-                        <div className="w-3 h-3 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
-                        <span className="text-xs text-violet-400">Fetching preview…</span>
-                      </div>
-                    )}
+                    {/* Expand toggle */}
+                    <button
+                      onClick={() => setOptions((prev: ActivityOption[]) => prev.map(o => o.id === opt.id ? { ...o, expanded: !o.expanded } : o))}
+                      className="w-full text-left px-3 pb-2 text-xs text-gray-400 hover:text-violet-600 transition-colors flex items-center gap-1"
+                    >
+                      <span>{opt.expanded ? '▾ Hide details' : '▸ Add description, cost & link'}</span>
+                      {(opt.description || opt.cost || opt.url) && !opt.expanded && (
+                        <span className="ml-1 text-violet-500 font-semibold">·</span>
+                      )}
+                    </button>
 
-                    {opt.preview && !opt.fetchingPreview && (
-                      <div className="ml-6 bg-violet-50 border border-violet-100 rounded-xl px-4 py-3 flex items-center gap-3">
-                        {opt.preview.image ? (
-                          <img
-                            src={opt.preview.image}
-                            alt=""
-                            className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    {/* Expanded detail fields */}
+                    {opt.expanded && (
+                      <div className="border-t border-gray-200 bg-white px-3 py-3 space-y-2.5">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Description</label>
+                          <textarea
+                            value={opt.description}
+                            onChange={e => setOptions((prev: ActivityOption[]) => prev.map(o => o.id === opt.id ? { ...o, description: e.target.value } : o))}
+                            placeholder="What makes this a good choice? Any extra info…"
+                            rows={2}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors resize-none"
                           />
-                        ) : (
-                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-orange-200 to-violet-300 flex-shrink-0" />
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-gray-800 truncate">{opt.preview.title}</p>
-                          <p className="text-xs text-gray-400 truncate mt-0.5">{opt.preview.domain}</p>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Cost per person</label>
+                          <input
+                            type="text"
+                            value={opt.cost}
+                            onChange={e => setOptions((prev: ActivityOption[]) => prev.map(o => o.id === opt.id ? { ...o, cost: e.target.value } : o))}
+                            placeholder="e.g. $25, Free, ~$40"
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Link</label>
+                          <input
+                            type="url"
+                            value={opt.url}
+                            onChange={e => handleUrlChange(opt.id, e.target.value)}
+                            placeholder="https://…"
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-gray-50 focus:outline-none focus:border-violet-500 focus:bg-white transition-colors"
+                          />
+                          {opt.fetchingPreview && (
+                            <div className="mt-2 bg-violet-50 border border-violet-100 rounded-lg px-3 py-2 flex items-center gap-2">
+                              <div className="w-3 h-3 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+                              <span className="text-xs text-violet-400">Fetching preview…</span>
+                            </div>
+                          )}
+                          {opt.preview && !opt.fetchingPreview && (
+                            <div className="mt-2 bg-violet-50 border border-violet-100 rounded-lg px-3 py-2 flex items-center gap-3">
+                              {opt.preview.image ? (
+                                <img src={opt.preview.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-200 to-violet-300 flex-shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-gray-800 truncate">{opt.preview.title}</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5">{opt.preview.domain}</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -568,10 +609,6 @@ export default function CreatePollPage() {
               >
                 + Add another option
               </button>
-
-              <p className="text-xs text-gray-300 mt-2.5">
-                Tip: paste a URL into any option field to get a rich preview
-              </p>
             </section>
 
             {/* Settings */}

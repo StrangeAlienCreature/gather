@@ -46,7 +46,9 @@ interface LinkPreview {
 interface PollOption {
   label: string
   votes: string[]
-  url?: string
+  description?: string | null
+  cost?: string | null
+  url?: string | null
   preview?: LinkPreview | null
 }
 
@@ -406,7 +408,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                 + Create poll
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3">
               {polls.map((poll) => {
                 const maxVotes = Math.max(...(poll.options?.map((o) => o.votes?.length ?? 0) ?? [0]), 0)
                 const hasVoted = currentUserId && (poll.voters ?? []).includes(currentUserId)
@@ -424,7 +426,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                     <p className="text-sm font-semibold text-stone-900 px-4 pb-3 leading-snug">{poll.title}</p>
 
                     {/* Option cards */}
-                    <div className="px-3 pb-3 space-y-2 flex-1">
+                    <div className="px-3 pb-3 grid grid-cols-2 gap-2">
                       {poll.options?.map((opt) => {
                         const count = opt.votes?.length ?? 0
                         const pct = maxVotes > 0 ? Math.round((count / maxVotes) * 100) : 0
@@ -435,34 +437,45 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                             key={opt.label}
                             onClick={() => !hasVoted && setSelectedOptions((prev: Record<string, string>) => ({ ...prev, [poll.id]: opt.label }))}
                             disabled={!!hasVoted}
-                            className={`w-full text-left rounded-xl border-2 overflow-hidden transition-all ${
+                            className={`w-full text-left rounded-xl border-2 overflow-hidden transition-all flex flex-col ${
                               isSelected ? 'border-violet-500 bg-violet-50' :
                               isWinner ? 'border-orange-300 bg-orange-50' :
                               'border-stone-100 bg-stone-50'
                             } ${!hasVoted ? 'hover:border-stone-300 cursor-pointer' : 'cursor-default'}`}
                           >
-                            {opt.preview ? (
-                              <div className="flex items-center gap-2.5 p-2.5">
-                                {opt.preview.image ? (
-                                  <img src={opt.preview.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                                ) : (
-                                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-200 to-violet-300 flex-shrink-0" />
-                                )}
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-semibold text-stone-900 line-clamp-2 leading-tight">{opt.preview.title || opt.label}</p>
-                                  <p className="text-[10px] text-stone-400 mt-0.5">{opt.preview.domain}</p>
-                                </div>
-                                {hasVoted && <span className="text-[10px] font-bold text-stone-400 flex-shrink-0">{count}</span>}
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between px-3 py-2.5 gap-2">
-                                <span className="text-xs text-stone-900 leading-snug">{opt.label}</span>
-                                {hasVoted && <span className="text-[10px] font-bold text-stone-400 flex-shrink-0">{count}</span>}
-                              </div>
+                            {/* Image */}
+                            {opt.preview?.image && (
+                              <img src={opt.preview.image} alt="" className="w-full h-24 object-cover" />
                             )}
+
+                            <div className="p-2.5 flex-1 flex flex-col gap-1">
+                              {/* Title */}
+                              <p className="text-xs font-semibold text-stone-900 leading-snug line-clamp-2">
+                                {opt.preview?.title || opt.label}
+                              </p>
+
+                              {/* Description */}
+                              {opt.description && (
+                                <p className="text-[10px] text-stone-500 leading-snug line-clamp-2">{opt.description}</p>
+                              )}
+
+                              {/* Cost + domain row */}
+                              <div className="flex items-center gap-1.5 mt-auto pt-1 flex-wrap">
+                                {opt.cost && (
+                                  <span className="text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">{opt.cost}</span>
+                                )}
+                                {opt.preview?.domain && (
+                                  <span className="text-[10px] text-stone-400">{opt.preview.domain}</span>
+                                )}
+                                {hasVoted && (
+                                  <span className="text-[10px] font-bold text-stone-400 ml-auto">{count} vote{count !== 1 ? 's' : ''}</span>
+                                )}
+                              </div>
+                            </div>
+
                             {hasVoted && pct > 0 && (
                               <div className="h-1 bg-stone-100">
-                                <div className={`h-full bg-gradient-to-r ${isWinner ? 'from-orange-400 to-pink-500' : 'from-stone-300 to-stone-300'}`} style={{ width: `${pct}%` }} />
+                                <div className={`h-full bg-gradient-to-r ${isWinner ? 'from-orange-400 to-pink-500' : 'from-stone-200 to-stone-200'}`} style={{ width: `${pct}%` }} />
                               </div>
                             )}
                           </button>
