@@ -251,7 +251,7 @@ export default function WelcomePage() {
               Your group is live
             </h2>
             <p className="text-[15px] text-white/80 leading-relaxed mb-7">
-              Here's a quick look at what was set up. You can edit all of this
+              Here&apos;s a quick look at what was set up. You can edit all of this
               from the dashboard.
             </p>
 
@@ -376,7 +376,7 @@ export default function WelcomePage() {
             </div>
 
             <h2 className="text-2xl font-medium text-white tracking-tight text-center mb-1">
-              You're all set
+              You&apos;re all set
             </h2>
             <p className="text-[15px] text-white/80 leading-relaxed text-center mb-8">
               Where do you want to start?

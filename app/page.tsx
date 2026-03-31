@@ -96,7 +96,7 @@ export default function Home() {
               <img src="/calendar.png" alt="" className="w-12 h-12 flex-shrink-0" />
               <div>
                 <p className="text-gray-900 text-lg">
-                  <span className="font-bold">See a group calendar with an agenda of events</span> — no more forgetting your best friend's birthday party.
+                  <span className="font-bold">See a group calendar with an agenda of events</span> — no more forgetting your best friend&apos;s birthday party.
                 </p>
               </div>
             </div>
@@ -105,7 +105,7 @@ export default function Home() {
               <img src="/thingstoknow.png" alt="" className="w-12 h-12 flex-shrink-0" />
               <div>
                 <p className="text-gray-900 text-lg">
-                  <span className="font-bold">Things to know section</span> — give your friends quick info at a glance, i.e. "park on the street" or "bring a swimsuit and a towel!"
+                  <span className="font-bold">Things to know section</span> — give your friends quick info at a glance, i.e. &quot;park on the street&quot; or &quot;bring a swimsuit and a towel!&quot;
                 </p>
               </div>
             </div>
@@ -114,7 +114,7 @@ export default function Home() {
               <img src="/infinity.png" alt="" className="w-12 h-12 flex-shrink-0" />
               <div>
                 <p className="text-gray-900 text-lg">
-                  <span className="font-bold">Set up once, use forever</span> — no more single-use event planning tools that don't save your group info.
+                  <span className="font-bold">Set up once, use forever</span> — no more single-use event planning tools that don&apos;t save your group info.
                 </p>
               </div>
             </div>
