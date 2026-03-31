@@ -206,6 +206,10 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
     router.push(`/groups/${slug}/create-poll`)
   }
 
+  function goToCreateEvent() {
+    router.push(`/groups/${slug}/create-event`)
+  }
+
   if (loading || !group) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -352,7 +356,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
           <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-stone-100">
               <span className="text-sm font-semibold text-stone-900">Upcoming events</span>
-              <span className="text-xs font-semibold text-orange-600 cursor-pointer">+ New event</span>
+              <button onClick={goToCreateEvent} className="text-xs font-semibold text-orange-600 hover:text-orange-700 transition-colors">+ New event</button>
             </div>
             {events.length === 0 ? (
               <div className="px-4 py-8 text-center">
