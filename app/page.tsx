@@ -12,7 +12,7 @@ export default function Home() {
     <a href="/" className="bg-gray-900 text-white py-2 px-5 rounded-full font-medium text-sm hover:bg-gray-700 transition-colors">
       Home
     </a>
-    <a href="/signup" className="border border-gray-200 text-gray-700 py-2 px-5 rounded-full font-medium text-sm hover:bg-gray-50 transition-colors">
+    <a href="/get-started" className="border border-gray-200 text-gray-700 py-2 px-5 rounded-full font-medium text-sm hover:bg-gray-50 transition-colors">
       Get Started
     </a>
   </div>
@@ -46,7 +46,7 @@ export default function Home() {
 
           {/* Buttons */}
           <div className="flex flex-row gap-3">
-            <a href="/signup" className="bg-white text-violet-700 py-4 px-8 rounded-2xl font-semibold text-lg text-center hover:bg-violet-50 transition-colors shadow-lg">
+            <a href="/get-started" className="bg-white text-violet-700 py-4 px-8 rounded-2xl font-semibold text-lg text-center hover:bg-violet-50 transition-colors shadow-lg">
               Create a group
             </a>
             <a href="/login" className="bg-white/20 backdrop-blur-sm text-white py-4 px-8 rounded-2xl font-semibold text-lg text-center border border-white/40 hover:bg-white/30 transition-colors">
@@ -132,7 +132,7 @@ export default function Home() {
 
           {/* Bottom CTA */}
           <div className="mt-16 text-center">
-            <a href="/signup" className="bg-violet-600 text-white py-4 px-10 rounded-2xl font-semibold text-lg hover:bg-violet-700 transition-colors shadow-lg">
+            <a href="/get-started" className="bg-violet-600 text-white py-4 px-10 rounded-2xl font-semibold text-lg hover:bg-violet-700 transition-colors shadow-lg">
               Get started for free
             </a>
           </div>
