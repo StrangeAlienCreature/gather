@@ -135,7 +135,7 @@ export default function CreatePollPage() {
       const { data: group } = await supabase
         .from('groups')
         .select('id, name, members')
-        .eq('slug', slug)
+        .eq('url_slug', slug)
         .single();
 
       if (!group) { router.push('/'); return; }
@@ -349,10 +349,10 @@ export default function CreatePollPage() {
           </div>
 
           <h1 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'var(--font-serif)' }}>
-            Poll's live!
+            Poll&apos;s live!
           </h1>
           <p className="text-gray-500 text-sm mb-10">
-            Let your group know it's time to vote.
+            Let your group know it&apos;s time to vote.
           </p>
 
           {/* Pre-written message card */}
@@ -618,7 +618,7 @@ export default function CreatePollPage() {
             {/* Details */}
             <section className="bg-white rounded-2xl p-5 border border-gray-100">
               <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-4">Poll details</p>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">What's this for?</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">What&apos;s this for?</label>
               <input
                 type="text"
                 value={title}
@@ -631,7 +631,7 @@ export default function CreatePollPage() {
             {/* Dates */}
             <section className="bg-white rounded-2xl p-5 border border-gray-100">
               <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-1">Dates to check</p>
-              <p className="text-xs text-gray-400 mb-4">Pick the dates you want to ask about. Members will mark when they're free.</p>
+              <p className="text-xs text-gray-400 mb-4">Pick the dates you want to ask about. Members will mark when they&apos;re free.</p>
 
               <div className="flex flex-wrap gap-2">
                 {dateSlots.map(d => (
