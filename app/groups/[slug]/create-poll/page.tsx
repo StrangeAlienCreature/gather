@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
-import Image from 'next/image';
+import { supabase } from '@/lib/supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,7 +83,6 @@ const BROAD_SLOTS: BroadTimeSlot[] = [
 export default function CreatePollPage() {
   const { slug } = useParams() as { slug: string };
   const router = useRouter();
-  const supabase = createClient();
 
   // ── Auth / group state
   const [userId, setUserId] = useState<string | null>(null);
