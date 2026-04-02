@@ -28,11 +28,6 @@ interface LinkPreview {
   domain: string;
 }
 
-interface DateSlot {
-  date: string;      // ISO date string e.g. "2026-04-05"
-  label: string;     // e.g. "Sat Apr 5"
-  selected: boolean;
-}
 
 interface BroadTimeSlot {
   key: string;
@@ -56,24 +51,22 @@ function isUrl(text: string) {
   }
 }
 
-function getNextDates(count: number): DateSlot[] {
-  const slots: DateSlot[] = [];
-  const now = new Date();
-  let d = new Date(now);
-  d.setDate(d.getDate() + 1);
-  while (slots.length < count) {
-    const day = d.getDay();
-    if (day === 0 || day === 6) {
-      const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      slots.push({
-        date: d.toISOString().split('T')[0],
-        label,
-        selected: slots.length < 2,
-      });
-    }
-    d.setDate(d.getDate() + 1);
+function buildPickerGrid(year: number, month: number) {
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrev = new Date(year, month, 0).getDate();
+  const cells: { day: number; thisMonth: boolean; dateStr: string }[] = [];
+  for (let i = firstDay - 1; i >= 0; i--) {
+    cells.push({ day: daysInPrev - i, thisMonth: false, dateStr: '' });
   }
-  return slots;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cells.push({ day: d, thisMonth: true, dateStr });
+  }
+  while (cells.length % 7 !== 0) {
+    cells.push({ day: cells.length - firstDay - daysInMonth + 1, thisMonth: false, dateStr: '' });
+  }
+  return cells;
 }
 
 const BROAD_SLOTS: BroadTimeSlot[] = [
@@ -118,7 +111,9 @@ export default function CreatePollPage() {
   const [isAnonymous, setIsAnonymous] = useState(false);
 
   // ── Availability poll fields
-  const [dateSlots, setDateSlots] = useState<DateSlot[]>(getNextDates(6));
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [calYear, setCalYear] = useState<number>(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState<number>(() => new Date().getMonth());
   const [granularity, setGranularity] = useState<Granularity>('broad');
   const [broadSlots, setBroadSlots] = useState<BroadTimeSlot[]>(BROAD_SLOTS);
   const [showAggregate, setShowAggregate] = useState(true);
@@ -211,8 +206,20 @@ export default function CreatePollPage() {
 
   // ─── Date / time slot toggles ────────────────────────────────────────────────
 
-  function toggleDate(date: string) {
-    setDateSlots(prev => prev.map(d => d.date === date ? { ...d, selected: !d.selected } : d));
+  function toggleCalendarDate(dateStr: string) {
+    setSelectedDates((prev: string[]) =>
+      prev.includes(dateStr) ? prev.filter(d => d !== dateStr) : [...prev, dateStr]
+    );
+  }
+
+  function prevCalMonth() {
+    if (calMonth === 0) { setCalYear((y: number) => y - 1); setCalMonth(11); }
+    else setCalMonth((m: number) => m - 1);
+  }
+
+  function nextCalMonth() {
+    if (calMonth === 11) { setCalYear((y: number) => y + 1); setCalMonth(0); }
+    else setCalMonth((m: number) => m + 1);
   }
 
   function toggleBroadSlot(key: string) {
@@ -230,7 +237,7 @@ export default function CreatePollPage() {
     }
 
     if (pollType === 'availability') {
-      if (!dateSlots.some(d => d.selected)) return 'Select at least one date to ask about.';
+      if (selectedDates.length === 0) return 'Select at least one date to ask about.';
       if (granularity === 'broad' && !broadSlots.some(s => s.selected)) return 'Select at least one time of day.';
     }
 
@@ -274,14 +281,14 @@ export default function CreatePollPage() {
       }
 
       if (pollType === 'availability') {
-        const selectedDates = dateSlots.filter(d => d.selected).map(d => d.date);
+        const selectedDateArr = [...selectedDates];
         const selectedTimes = granularity === 'broad'
           ? broadSlots.filter(s => s.selected).map(s => s.key)
           : 'hourly';
 
         pollData.granularity = granularity;
         pollData.options = {
-          dates: selectedDates,
+          dates: selectedDateArr,
           times: selectedTimes,
           show_aggregate_only: showAggregate,
           members_can_update: membersCanUpdate,
@@ -393,6 +400,13 @@ export default function CreatePollPage() {
       </div>
     );
   }
+
+  // ─── Calendar picker pre-computation ────────────────────────────────────────
+
+  const _pickerToday = new Date();
+  const pickerTodayStr = `${_pickerToday.getFullYear()}-${String(_pickerToday.getMonth() + 1).padStart(2, '0')}-${String(_pickerToday.getDate()).padStart(2, '0')}`;
+  const pickerCalLabel = new Date(calYear, calMonth).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const pickerGrid = buildPickerGrid(calYear, calMonth);
 
   // ─── Main form ────────────────────────────────────────────────────────────────
 
@@ -665,44 +679,86 @@ export default function CreatePollPage() {
             {/* Dates */}
             <section className="bg-white rounded-2xl p-5 border border-gray-100">
               <p className="text-xs font-semibold text-gray-300 uppercase tracking-widest mb-1">Dates to check</p>
-              <p className="text-xs text-gray-400 mb-4">Pick the dates you want to ask about. Members will mark when they&apos;re free.</p>
+              <p className="text-xs text-gray-400 mb-4">Tap any date to select it. Members will mark when they&apos;re free.</p>
 
-              <div className="flex flex-wrap gap-2">
-                {dateSlots.map(d => (
+              {/* Calendar widget */}
+              <div>
+                {/* Month nav */}
+                <div className="flex items-center justify-between mb-3">
                   <button
-                    key={d.date}
-                    onClick={() => toggleDate(d.date)}
-                    className="px-3.5 py-1.5 rounded-full border-2 text-xs font-semibold transition-all"
-                    style={{
-                      borderColor: d.selected ? '#7c3aed' : '#e5e7eb',
-                      color: d.selected ? '#7c3aed' : '#9ca3af',
-                      background: d.selected ? '#faf9ff' : 'white',
-                    }}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-                <button
-                  className="px-3.5 py-1.5 rounded-full border-2 border-dashed border-gray-200 text-xs text-gray-400 hover:border-violet-400 hover:text-violet-600 transition-colors"
-                  onClick={() => {
-                    // Extend the date list by another week's worth of weekends
-                    const last = dateSlots[dateSlots.length - 1];
-                    const fromDate = new Date(last.date);
-                    fromDate.setDate(fromDate.getDate() + 1);
-                    const extras: DateSlot[] = [];
-                    while (extras.length < 2) {
-                      const day = fromDate.getDay();
-                      if (day === 0 || day === 6) {
-                        const label = fromDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                        extras.push({ date: fromDate.toISOString().split('T')[0], label, selected: false });
-                      }
-                      fromDate.setDate(fromDate.getDate() + 1);
-                    }
-                    setDateSlots(prev => [...prev, ...extras]);
-                  }}
-                >
-                  + More dates
-                </button>
+                    type="button"
+                    onClick={prevCalMonth}
+                    className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-xs text-gray-600 hover:bg-gray-100 transition-colors"
+                  >‹</button>
+                  <span className="text-sm font-semibold text-gray-900">{pickerCalLabel}</span>
+                  <button
+                    type="button"
+                    onClick={nextCalMonth}
+                    className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-xs text-gray-600 hover:bg-gray-100 transition-colors"
+                  >›</button>
+                </div>
+
+                {/* Day headers */}
+                <div className="grid grid-cols-7 text-center mb-1">
+                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+                    <div key={d} className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide pb-1">{d}</div>
+                  ))}
+                </div>
+
+                {/* Day cells */}
+                <div className="grid grid-cols-7 text-center">
+                  {pickerGrid.map((cell, i) => {
+                    const isPast = cell.thisMonth && cell.dateStr < pickerTodayStr;
+                    const isSelected = cell.thisMonth && selectedDates.includes(cell.dateStr);
+                    const isToday = cell.dateStr === pickerTodayStr;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={!cell.thisMonth || isPast}
+                        onClick={() => toggleCalendarDate(cell.dateStr)}
+                        className={[
+                          'text-xs py-1.5 rounded-lg transition-all',
+                          !cell.thisMonth ? 'text-gray-200 cursor-default' :
+                          isPast ? 'text-gray-300 cursor-not-allowed' :
+                          isSelected ? 'font-bold text-white' :
+                          isToday ? 'font-bold' :
+                          'text-gray-800 hover:bg-gray-100 cursor-pointer',
+                        ].join(' ')}
+                        style={isSelected ? { background: 'linear-gradient(135deg, #ec4899, #7c3aed)' } :
+                               isToday && !isSelected ? { background: '#f3f0ff', color: '#7c3aed' } : {}}
+                      >
+                        {cell.thisMonth ? cell.day : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected summary */}
+                {selectedDates.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                      {selectedDates.length} date{selectedDates.length !== 1 ? 's' : ''} selected
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[...selectedDates].sort().map((ds: string) => {
+                        const [y, mo, day] = ds.split('-').map(Number);
+                        const label = new Date(y, mo - 1, day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                        return (
+                          <button
+                            key={ds}
+                            type="button"
+                            onClick={() => toggleCalendarDate(ds)}
+                            className="px-2.5 py-1 rounded-full text-xs font-semibold text-white flex items-center gap-1"
+                            style={{ background: 'linear-gradient(135deg, #ec4899, #7c3aed)' }}
+                          >
+                            {label} ×
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 

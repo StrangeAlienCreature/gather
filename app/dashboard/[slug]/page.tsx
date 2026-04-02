@@ -64,12 +64,20 @@ interface PollOption {
   preview?: LinkPreview | null
 }
 
+interface AvailabilityOptions {
+  dates: string[]
+  times: string[] | 'hourly'
+  show_aggregate_only?: boolean
+  members_can_update?: boolean
+  responses?: Record<string, string[]>
+}
+
 interface Poll {
   id: string
   title: string
   description: string | null
   poll_type: string
-  options: PollOption[]
+  options: unknown
   voters: string[]
   expiry_date: string | null
   allow_multiple_votes: boolean
@@ -196,6 +204,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
   const pendingVotes = polls.filter((p) => currentUserId && !(p.voters ?? []).includes(currentUserId)).length
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
+  const [availabilitySelections, setAvailabilitySelections] = useState<Record<string, string[]>>({})
   const [votingPollId, setVotingPollId] = useState<string | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ pollId: string; type: 'close' | 'delete' } | null>(null)
 
@@ -221,6 +230,37 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
     }
     setVotingPollId(null)
     setSelectedOptions((prev: Record<string, string>) => { const n = { ...prev }; delete n[pollId]; return n })
+  }
+
+  function toggleAvailabilityDate(pollId: string, dateStr: string) {
+    setAvailabilitySelections((prev: Record<string, string[]>) => {
+      const current = prev[pollId] ?? []
+      const next = current.includes(dateStr)
+        ? current.filter((d: string) => d !== dateStr)
+        : [...current, dateStr]
+      return { ...prev, [pollId]: next }
+    })
+  }
+
+  async function handleAvailabilityVote(pollId: string, dates: string[]) {
+    if (!currentUserId || votingPollId) return
+    setVotingPollId(pollId)
+    const { data: pollData } = await supabase
+      .from('polls')
+      .select('options, voters')
+      .eq('id', pollId)
+      .single()
+    if (pollData) {
+      const opts = (pollData.options as unknown) as AvailabilityOptions
+      const responses = { ...(opts.responses ?? {}), [currentUserId]: dates }
+      await supabase
+        .from('polls')
+        .update({ options: { ...opts, responses }, voters: [...(pollData.voters ?? []), currentUserId] })
+        .eq('id', pollId)
+      await loadGroupData(currentUserId)
+    }
+    setVotingPollId(null)
+    setAvailabilitySelections((prev: Record<string, string[]>) => { const n = { ...prev }; delete n[pollId]; return n })
   }
 
   async function handleClosePoll(pollId: string) {
@@ -481,10 +521,15 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
             </div>
             <div className="space-y-3">
               {polls.map((poll) => {
-                const optionsArray: PollOption[] = Array.isArray(poll.options) ? poll.options : []
+                const isAvailability = poll.poll_type === 'availability'
+                const optionsArray: PollOption[] = Array.isArray(poll.options) ? (poll.options as PollOption[]) : []
+                const availOpts: AvailabilityOptions | null = !isAvailability ? null : (poll.options as AvailabilityOptions)
+                const availDates: string[] = availOpts?.dates ?? []
+                const availResponses: Record<string, string[]> = availOpts?.responses ?? {}
                 const maxVotes = Math.max(...(optionsArray.length ? optionsArray.map((o) => o.votes?.length ?? 0) : [0]), 0)
                 const hasVoted = currentUserId && (poll.voters ?? []).includes(currentUserId)
                 const selected = selectedOptions[poll.id]
+                const myAvailDates = availabilitySelections[poll.id] ?? []
                 const isSubmitting = votingPollId === poll.id
                 return (
                   <div key={poll.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden flex flex-col">
@@ -515,67 +560,113 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                       <p className="text-xs text-stone-400 px-4 pb-3 leading-snug">{poll.description}</p>
                     )}
 
-                    {/* Option cards */}
-                    <div className="px-3 pb-3 grid grid-cols-2 gap-2">
-                      {optionsArray.map((opt) => {
-                        const count = opt.votes?.length ?? 0
-                        const pct = maxVotes > 0 ? Math.round((count / maxVotes) * 100) : 0
-                        const isSelected = selected === opt.label
-                        const isWinner = hasVoted && maxVotes > 0 && count === maxVotes
-                        return (
-                          <button
-                            key={opt.label}
-                            onClick={() => !hasVoted && setSelectedOptions((prev: Record<string, string>) => ({ ...prev, [poll.id]: opt.label }))}
-                            disabled={!!hasVoted}
-                            className={`w-full text-left rounded-xl border-2 overflow-hidden transition-all flex flex-col ${
-                              isSelected ? 'border-violet-500 bg-violet-50' :
-                              isWinner ? 'border-orange-300 bg-orange-50' :
-                              'border-stone-100 bg-stone-50'
-                            } ${!hasVoted ? 'hover:border-stone-300 cursor-pointer' : 'cursor-default'}`}
-                          >
-                            {/* Image */}
-                            {opt.preview?.image && (
-                              <img src={opt.preview.image} alt="" className="w-full h-24 object-cover" />
-                            )}
-
-                            <div className="p-2.5 flex-1 flex flex-col gap-1">
-                              {/* Title */}
-                              <p className="text-xs font-semibold text-stone-900 leading-snug line-clamp-2">
-                                {opt.preview?.title || opt.label}
-                              </p>
-
-                              {/* Description */}
-                              {opt.description && (
-                                <p className="text-[10px] text-stone-500 leading-snug line-clamp-2">{opt.description}</p>
+                    {/* Activity poll: option cards */}
+                    {!isAvailability && (
+                      <div className="px-3 pb-3 grid grid-cols-2 gap-2">
+                        {optionsArray.map((opt) => {
+                          const count = opt.votes?.length ?? 0
+                          const pct = maxVotes > 0 ? Math.round((count / maxVotes) * 100) : 0
+                          const isSelected = selected === opt.label
+                          const isWinner = hasVoted && maxVotes > 0 && count === maxVotes
+                          return (
+                            <button
+                              key={opt.label}
+                              onClick={() => !hasVoted && setSelectedOptions((prev: Record<string, string>) => ({ ...prev, [poll.id]: opt.label }))}
+                              disabled={!!hasVoted}
+                              className={`w-full text-left rounded-xl border-2 overflow-hidden transition-all flex flex-col ${
+                                isSelected ? 'border-violet-500 bg-violet-50' :
+                                isWinner ? 'border-orange-300 bg-orange-50' :
+                                'border-stone-100 bg-stone-50'
+                              } ${!hasVoted ? 'hover:border-stone-300 cursor-pointer' : 'cursor-default'}`}
+                            >
+                              {opt.preview?.image && (
+                                <img src={opt.preview.image} alt="" className="w-full h-24 object-cover" />
                               )}
-
-                              {/* Cost + domain row */}
-                              <div className="flex items-center gap-1.5 mt-auto pt-1 flex-wrap">
-                                {opt.cost && (
-                                  <span className="text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">{opt.cost}</span>
+                              <div className="p-2.5 flex-1 flex flex-col gap-1">
+                                <p className="text-xs font-semibold text-stone-900 leading-snug line-clamp-2">
+                                  {opt.preview?.title || opt.label}
+                                </p>
+                                {opt.description && (
+                                  <p className="text-[10px] text-stone-500 leading-snug line-clamp-2">{opt.description}</p>
                                 )}
-                                {opt.preview?.domain && (
-                                  <span className="text-[10px] text-stone-400">{opt.preview.domain}</span>
-                                )}
-                                {hasVoted && (
-                                  <span className="text-[10px] font-bold text-stone-400 ml-auto">{count} vote{count !== 1 ? 's' : ''}</span>
-                                )}
+                                <div className="flex items-center gap-1.5 mt-auto pt-1 flex-wrap">
+                                  {opt.cost && (
+                                    <span className="text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">{opt.cost}</span>
+                                  )}
+                                  {opt.preview?.domain && (
+                                    <span className="text-[10px] text-stone-400">{opt.preview.domain}</span>
+                                  )}
+                                  {hasVoted && (
+                                    <span className="text-[10px] font-bold text-stone-400 ml-auto">{count} vote{count !== 1 ? 's' : ''}</span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                              {hasVoted && pct > 0 && (
+                                <div className="h-1 bg-stone-100">
+                                  <div className={`h-full bg-gradient-to-r ${isWinner ? 'from-orange-400 to-pink-500' : 'from-stone-200 to-stone-200'}`} style={{ width: `${pct}%` }} />
+                                </div>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
 
-                            {hasVoted && pct > 0 && (
-                              <div className="h-1 bg-stone-100">
-                                <div className={`h-full bg-gradient-to-r ${isWinner ? 'from-orange-400 to-pink-500' : 'from-stone-200 to-stone-200'}`} style={{ width: `${pct}%` }} />
-                              </div>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
+                    {/* Availability poll: date chips */}
+                    {isAvailability && (
+                      <div className="px-3 pb-3">
+                        {availDates.length === 0 ? (
+                          <p className="text-xs text-stone-400 text-center py-2">No dates set for this poll.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {availDates.map((dateStr: string) => {
+                              const [y, mo, d] = dateStr.split('-').map(Number)
+                              const label = new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                              const voteCount = Object.values(availResponses).filter((dates: string[]) => dates.includes(dateStr)).length
+                              const isDateSelected = myAvailDates.includes(dateStr)
+                              return (
+                                <button
+                                  key={dateStr}
+                                  onClick={() => !hasVoted && toggleAvailabilityDate(poll.id, dateStr)}
+                                  disabled={!!hasVoted}
+                                  className="px-3 py-1.5 rounded-full border-2 text-xs font-semibold transition-all"
+                                  style={isDateSelected
+                                    ? { borderColor: '#7c3aed', background: '#faf9ff', color: '#7c3aed' }
+                                    : hasVoted
+                                    ? { borderColor: '#e7e5e4', background: '#fafaf9', color: '#78716c' }
+                                    : { borderColor: '#e7e5e4', background: 'white', color: '#78716c' }}
+                                >
+                                  {label}
+                                  {hasVoted && (
+                                    <span className="ml-1.5 font-bold" style={{ color: voteCount > 0 ? '#22c55e' : '#a8a29e' }}>
+                                      {voteCount}/{group.members.length}
+                                    </span>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Footer */}
                     <div className="px-3 pb-3 space-y-2">
-                      {!hasVoted ? (
+                      {isAvailability ? (
+                        !hasVoted ? (
+                          <button
+                            onClick={() => handleAvailabilityVote(poll.id, myAvailDates)}
+                            disabled={myAvailDates.length === 0 || isSubmitting}
+                            className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-400 to-pink-500 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {isSubmitting ? 'Submitting…' : myAvailDates.length > 0 ? `Submit availability (${myAvailDates.length} date${myAvailDates.length !== 1 ? 's' : ''}) →` : 'Pick your available dates'}
+                          </button>
+                        ) : (
+                          <div className="text-center text-[11px] text-stone-400">
+                            Responded ✓ · {group.members.length - (poll.voters?.length ?? 0)} still pending
+                          </div>
+                        )
+                      ) : !hasVoted ? (
                         <button
                           onClick={() => selected && handleVote(poll.id, selected)}
                           disabled={!selected || isSubmitting}
