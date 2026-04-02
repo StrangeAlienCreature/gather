@@ -31,9 +31,21 @@ interface Event {
   id: string
   title: string
   date: string
-  location: string
+  end_date: string | null
+  location: string | null
+  location_url: string | null
   status: string
   attendees: string[]
+  cost_per_person: string | null
+  host_name: string | null
+  host_phone: string | null
+  activity_url: string | null
+  link_title: string | null
+  link_image: string | null
+  link_domain: string | null
+  things_to_know: string | null
+  accessibility_flags: string[] | null
+  tasks: Array<{ id: string; label: string; assigned_to: string | null }> | null
 }
 
 interface LinkPreview {
@@ -55,9 +67,13 @@ interface PollOption {
 interface Poll {
   id: string
   title: string
+  description: string | null
   poll_type: string
   options: PollOption[]
   voters: string[]
+  closes_on: string | null
+  allow_multiple: boolean
+  is_anonymous: boolean
 }
 
 const PIP_GRADIENTS = [
@@ -75,6 +91,13 @@ const DOT_COLORS: Record<string, string> = {
 function formatDate(dateStr: string) {
   const d = new Date(dateStr)
   return { day: d.getDate(), month: d.toLocaleString('default', { month: 'short' }) }
+}
+
+function getTimeDisplay(dateStr: string): string | null {
+  // If stored as UTC midnight, no time was set
+  if (dateStr.includes('T00:00:00')) return null
+  const d = new Date(dateStr)
+  return d.toLocaleTimeString('default', { hour: 'numeric', minute: '2-digit' })
 }
 
 function getInitials(name: string) {
@@ -365,11 +388,14 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
               </div>
             ) : events.map((e) => {
               const { day, month } = formatDate(e.date)
+              const startTime = getTimeDisplay(e.date)
+              const endTime = e.end_date ? getTimeDisplay(e.end_date) : null
+              const taskCount = e.tasks ? e.tasks.filter((t: { label: string }) => t.label).length : 0
               const attendees = (e.attendees ?? []).slice(0, 3)
               const extraCount = Math.max(0, (e.attendees ?? []).length - 3)
               return (
                 <div key={e.id} className="flex items-start gap-3 px-4 py-3 border-b border-stone-100 last:border-none hover:bg-stone-50 transition-colors cursor-pointer">
-                  <div className={`min-w-[40px] text-center rounded-xl py-1.5 px-1 ${e.status === 'confirmed' ? 'bg-gradient-to-b from-orange-50 to-pink-50 border border-orange-200' : 'bg-stone-50 border border-stone-200'}`}>
+                  <div className={`min-w-[40px] text-center rounded-xl py-1.5 px-1 flex-shrink-0 ${e.status === 'confirmed' ? 'bg-gradient-to-b from-orange-50 to-pink-50 border border-orange-200' : 'bg-stone-50 border border-stone-200'}`}>
                     <div className={`text-lg font-bold leading-none ${e.status === 'confirmed' ? 'text-orange-600' : 'text-stone-400'}`}>{day}</div>
                     <div className={`text-[9px] uppercase tracking-wide mt-0.5 ${e.status === 'confirmed' ? 'text-pink-500' : 'text-stone-400'}`}>{month}</div>
                   </div>
@@ -380,7 +406,34 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                         <span className="text-[10px] bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full font-medium flex-shrink-0">Proposed</span>
                       )}
                     </div>
-                    {e.location && <p className="text-xs text-stone-400 mt-0.5">{e.location}</p>}
+                    {startTime && (
+                      <p className="text-xs text-stone-500 mt-0.5">{startTime}{endTime ? ` – ${endTime}` : ''}</p>
+                    )}
+                    {e.location && (
+                      <p className="text-xs text-stone-400 mt-0.5 truncate">
+                        {e.location_url ? (
+                          <a href={e.location_url} target="_blank" rel="noreferrer" className="underline hover:text-orange-600 transition-colors" onClick={ev => ev.stopPropagation()}>
+                            {e.location}
+                          </a>
+                        ) : e.location}
+                      </p>
+                    )}
+                    {(e.cost_per_person || e.host_name || taskCount > 0) && (
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {e.cost_per_person && (
+                          <span className="text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">{e.cost_per_person}</span>
+                        )}
+                        {e.host_name && (
+                          <span className="text-[10px] text-stone-400">Host: {e.host_name}</span>
+                        )}
+                        {taskCount > 0 && (
+                          <span className="text-[10px] bg-violet-50 text-violet-600 border border-violet-200 px-1.5 py-0.5 rounded-full">{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
+                        )}
+                      </div>
+                    )}
+                    {e.link_domain && (
+                      <p className="text-[10px] text-stone-400 mt-0.5">🔗 {e.link_domain}</p>
+                    )}
                     {attendees.length > 0 && (
                       <div className="flex gap-1 mt-1.5">
                         {attendees.map((uid, idx) => (
@@ -421,13 +474,31 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                 return (
                   <div key={poll.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden flex flex-col">
                     {/* Header */}
-                    <div className="flex items-center justify-between px-4 pt-3 pb-2">
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide ${poll.poll_type === 'availability' ? 'bg-gradient-to-r from-orange-50 to-pink-50 text-orange-700 border border-orange-200' : 'bg-gradient-to-r from-pink-50 to-violet-50 text-violet-700 border border-violet-200'}`}>
-                        {poll.poll_type}
-                      </span>
-                      <span className="text-xs text-stone-400">{poll.voters?.length ?? 0}/{group.members.length} voted</span>
+                    <div className="flex items-center justify-between px-4 pt-3 pb-2 gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide ${poll.poll_type === 'availability' ? 'bg-gradient-to-r from-orange-50 to-pink-50 text-orange-700 border border-orange-200' : 'bg-gradient-to-r from-pink-50 to-violet-50 text-violet-700 border border-violet-200'}`}>
+                          {poll.poll_type}
+                        </span>
+                        {poll.allow_multiple && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-stone-500 border border-stone-200">Multi-pick</span>
+                        )}
+                        {poll.is_anonymous && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-stone-500 border border-stone-200">Anonymous</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+                        {poll.closes_on && (
+                          <span className="text-[10px] text-stone-400">
+                            Closes {new Date(poll.closes_on).toLocaleDateString('default', { month: 'short', day: 'numeric' })}
+                          </span>
+                        )}
+                        <span className="text-xs text-stone-400">{poll.voters?.length ?? 0}/{group.members.length} voted</span>
+                      </div>
                     </div>
-                    <p className="text-sm font-semibold text-stone-900 px-4 pb-3 leading-snug">{poll.title}</p>
+                    <p className="text-sm font-semibold text-stone-900 px-4 pb-1 leading-snug">{poll.title}</p>
+                    {poll.description && (
+                      <p className="text-xs text-stone-400 px-4 pb-3 leading-snug">{poll.description}</p>
+                    )}
 
                     {/* Option cards */}
                     <div className="px-3 pb-3 grid grid-cols-2 gap-2">
