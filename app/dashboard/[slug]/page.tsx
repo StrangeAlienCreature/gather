@@ -397,7 +397,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
         {/* Stat cards */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Active polls',    value: activePolls,    accent: 'from-orange-400 to-pink-500', path: null },
+            { label: 'Active polls',    value: activePolls,    accent: 'from-orange-400 to-pink-500', path: `/groups/${slug}/poll-hub` },
             { label: 'Upcoming events', value: upcomingEvents, accent: 'from-pink-500 to-violet-600', path: `/groups/${slug}/events-hub` },
             { label: 'Pending votes',   value: pendingVotes,   accent: 'from-violet-600 to-indigo-500', path: null },
           ].map((s) => (
@@ -770,7 +770,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
         {[
           { icon: '🏠', label: 'Home',     active: true,  path: null },
           { icon: '📅', label: 'Calendar', active: false, path: `/groups/${slug}/calendar-view` },
-          { icon: '📊', label: 'Polls',    active: false, path: null },
+          { icon: '📊', label: 'Polls',    active: false, path: `/groups/${slug}/poll-hub` },
           { icon: '🎯', label: 'Events',   active: false, path: `/groups/${slug}/events-hub` },
           { icon: '👤', label: 'Profile',  active: false, path: null },
         ].map((item) => (

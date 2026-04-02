@@ -533,7 +533,7 @@ export default function EventsHubPage({ params }: { params: { slug: string } }) 
         {[
           { icon: '🏠', label: 'Home',     active: false, path: `/dashboard/${slug}` },
           { icon: '📅', label: 'Calendar', active: false, path: `/groups/${slug}/calendar-view` },
-          { icon: '📊', label: 'Polls',    active: false, path: null },
+          { icon: '📊', label: 'Polls',    active: false, path: `/groups/${slug}/poll-hub` },
           { icon: '🎯', label: 'Events',   active: true,  path: null },
           { icon: '👤', label: 'Profile',  active: false, path: null },
         ].map((item) => (
