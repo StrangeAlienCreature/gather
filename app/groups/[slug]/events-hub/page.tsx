@@ -47,6 +47,20 @@ interface Event {
   tasks: Array<{ id: string; label: string; assigned_to: string | null }> | null
 }
 
+const ACCESSIBILITY_FLAGS: Record<string, { label: string; emoji: string }> = {
+  step_free:          { label: 'Step-free access',   emoji: '♿' },
+  elevator:           { label: 'Elevator on site',   emoji: '🛗' },
+  limited_walking:    { label: 'Limited walking',    emoji: '🚶' },
+  seating_available:  { label: 'Seating available',  emoji: '🪑' },
+  accessible_parking: { label: 'Accessible parking', emoji: '🅿️' },
+  loud_environment:   { label: 'Loud / busy space',  emoji: '🔊' },
+}
+
+function formatFlag(key: string) {
+  const f = ACCESSIBILITY_FLAGS[key]
+  return f ? `${f.emoji} ${f.label}` : key.replace(/_/g, ' ')
+}
+
 const PIP_GRADIENTS = [
   'from-orange-400 to-pink-500',
   'from-pink-500 to-violet-600',
@@ -360,7 +374,7 @@ export default function EventsHubPage({ params }: { params: { slug: string } }) 
                         )}
                         {(event.accessibility_flags ?? []).map((flag) => (
                           <span key={flag} className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full">
-                            ♿ {flag}
+                            {formatFlag(flag)}
                           </span>
                         ))}
                       </div>
@@ -376,7 +390,7 @@ export default function EventsHubPage({ params }: { params: { slug: string } }) 
                         <div>
                           <span className="font-semibold text-stone-400 uppercase tracking-wide text-[10px] block mb-0.5">Date</span>
                           {formatFullDate(event.date)}
-                          {event.end_date && ` → ${formatFullDate(event.end_date)}`}
+                          {event.end_date && formatFullDate(event.end_date) !== formatFullDate(event.date) && ` → ${formatFullDate(event.end_date)}`}
                         </div>
                         {startTime && (
                           <div>
@@ -387,7 +401,7 @@ export default function EventsHubPage({ params }: { params: { slug: string } }) 
                         {event.cost_per_person && (
                           <div>
                             <span className="font-semibold text-stone-400 uppercase tracking-wide text-[10px] block mb-0.5">Cost</span>
-                            {event.cost_per_person} per person
+                            {event.cost_per_person}
                           </div>
                         )}
                       </div>
@@ -408,7 +422,7 @@ export default function EventsHubPage({ params }: { params: { slug: string } }) 
                       )}
 
                       {/* Link preview */}
-                      {event.activity_url && (
+                      {event.activity_url && event.activity_url.trim() !== '' && (
                         <div>
                           <span className="font-semibold text-stone-400 uppercase tracking-wide text-[10px] block mb-1">Activity link</span>
                           <a
@@ -425,11 +439,13 @@ export default function EventsHubPage({ params }: { params: { slug: string } }) 
                               />
                             )}
                             <div className="min-w-0 flex-1">
-                              {event.link_title && (
+                              {event.link_title ? (
                                 <p className="text-sm font-semibold text-stone-900 truncate group-hover:text-orange-600 transition-colors">{event.link_title}</p>
+                              ) : (
+                                <p className="text-sm font-medium text-blue-600 truncate group-hover:text-orange-600 transition-colors">{event.activity_url}</p>
                               )}
                               {event.link_domain && (
-                                <p className="text-xs text-stone-400 mt-0.5">{event.link_domain}</p>
+                                <p className="text-xs text-stone-500 mt-0.5">{event.link_domain}</p>
                               )}
                             </div>
                             <span className="text-stone-300 text-sm flex-shrink-0">↗</span>
@@ -454,7 +470,7 @@ export default function EventsHubPage({ params }: { params: { slug: string } }) 
                           <div className="flex flex-wrap gap-1.5">
                             {(event.accessibility_flags ?? []).map((flag) => (
                               <span key={flag} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full">
-                                ♿ {flag}
+                                {formatFlag(flag)}
                               </span>
                             ))}
                           </div>
@@ -516,7 +532,7 @@ export default function EventsHubPage({ params }: { params: { slug: string } }) 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 flex justify-around items-center py-2 z-10">
         {[
           { icon: '🏠', label: 'Home',     active: false, path: `/dashboard/${slug}` },
-          { icon: '📅', label: 'Calendar', active: false, path: null },
+          { icon: '📅', label: 'Calendar', active: false, path: `/groups/${slug}/calendar-view` },
           { icon: '📊', label: 'Polls',    active: false, path: null },
           { icon: '🎯', label: 'Events',   active: true,  path: null },
           { icon: '👤', label: 'Profile',  active: false, path: null },

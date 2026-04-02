@@ -769,7 +769,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 flex justify-around items-center py-2 z-10">
         {[
           { icon: '🏠', label: 'Home',     active: true,  path: null },
-          { icon: '📅', label: 'Calendar', active: false, path: null },
+          { icon: '📅', label: 'Calendar', active: false, path: `/groups/${slug}/calendar-view` },
           { icon: '📊', label: 'Polls',    active: false, path: null },
           { icon: '🎯', label: 'Events',   active: false, path: `/groups/${slug}/events-hub` },
           { icon: '👤', label: 'Profile',  active: false, path: null },
