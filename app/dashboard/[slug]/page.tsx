@@ -397,11 +397,11 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
         {/* Stat cards */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Active polls',    value: activePolls,    accent: 'from-orange-400 to-pink-500' },
-            { label: 'Upcoming events', value: upcomingEvents, accent: 'from-pink-500 to-violet-600' },
-            { label: 'Pending votes',   value: pendingVotes,   accent: 'from-violet-600 to-indigo-500' },
+            { label: 'Active polls',    value: activePolls,    accent: 'from-orange-400 to-pink-500', path: null },
+            { label: 'Upcoming events', value: upcomingEvents, accent: 'from-pink-500 to-violet-600', path: `/groups/${slug}/events-hub` },
+            { label: 'Pending votes',   value: pendingVotes,   accent: 'from-violet-600 to-indigo-500', path: null },
           ].map((s) => (
-            <div key={s.label} className="relative bg-white border border-stone-200 rounded-xl pt-4 pb-3 px-4 overflow-hidden">
+            <div key={s.label} onClick={() => s.path && router.push(s.path)} className={`relative bg-white border border-stone-200 rounded-xl pt-4 pb-3 px-4 overflow-hidden ${s.path ? 'cursor-pointer hover:border-orange-200 transition-colors' : ''}`}>
               <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${s.accent}`} />
               <p className="text-xs text-stone-400 mb-1">{s.label}</p>
               <p className="text-3xl font-bold text-stone-900 leading-none">{s.value}</p>
@@ -458,7 +458,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
 
           <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-stone-100">
-              <span className="text-sm font-semibold text-stone-900">Upcoming events</span>
+              <button onClick={() => router.push(`/groups/${slug}/events-hub`)} className="text-sm font-semibold text-stone-900 hover:text-orange-600 transition-colors">Upcoming events</button>
               <button onClick={goToCreateEvent} className="text-xs font-semibold text-orange-600 hover:text-orange-700 transition-colors">+ New event</button>
             </div>
             {events.length === 0 ? (
@@ -768,13 +768,13 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
       {/* Bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 flex justify-around items-center py-2 z-10">
         {[
-          { icon: '🏠', label: 'Home',     active: true },
-          { icon: '📅', label: 'Calendar', active: false },
-          { icon: '📊', label: 'Polls',    active: false },
-          { icon: '🎯', label: 'Events',   active: false },
-          { icon: '👤', label: 'Profile',  active: false },
+          { icon: '🏠', label: 'Home',     active: true,  path: null },
+          { icon: '📅', label: 'Calendar', active: false, path: null },
+          { icon: '📊', label: 'Polls',    active: false, path: null },
+          { icon: '🎯', label: 'Events',   active: false, path: `/groups/${slug}/events-hub` },
+          { icon: '👤', label: 'Profile',  active: false, path: null },
         ].map((item) => (
-          <button key={item.label} className="flex flex-col items-center gap-0.5 px-4 py-1">
+          <button key={item.label} onClick={() => item.path && router.push(item.path)} className="flex flex-col items-center gap-0.5 px-4 py-1">
             <span className="text-lg">{item.icon}</span>
             <span className={`text-[10px] font-medium ${item.active ? 'text-orange-600 font-bold' : 'text-stone-400'}`}>{item.label}</span>
           </button>
