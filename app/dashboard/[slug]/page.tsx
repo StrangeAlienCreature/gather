@@ -481,7 +481,8 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
             </div>
             <div className="space-y-3">
               {polls.map((poll) => {
-                const maxVotes = Math.max(...(poll.options?.map((o) => o.votes?.length ?? 0) ?? [0]), 0)
+                const optionsArray: PollOption[] = Array.isArray(poll.options) ? poll.options : []
+                const maxVotes = Math.max(...(optionsArray.length ? optionsArray.map((o) => o.votes?.length ?? 0) : [0]), 0)
                 const hasVoted = currentUserId && (poll.voters ?? []).includes(currentUserId)
                 const selected = selectedOptions[poll.id]
                 const isSubmitting = votingPollId === poll.id
@@ -516,7 +517,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
 
                     {/* Option cards */}
                     <div className="px-3 pb-3 grid grid-cols-2 gap-2">
-                      {poll.options?.map((opt) => {
+                      {optionsArray.map((opt) => {
                         const count = opt.votes?.length ?? 0
                         const pct = maxVotes > 0 ? Math.round((count / maxVotes) * 100) : 0
                         const isSelected = selected === opt.label
