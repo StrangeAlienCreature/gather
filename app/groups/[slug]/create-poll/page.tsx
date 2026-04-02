@@ -249,6 +249,7 @@ export default function CreatePollPage() {
       let pollData: Record<string, unknown> = {
         group_id: groupId,
         title: title.trim(),
+        description: description.trim() || null,
         created_by: userId,
         status: 'active',
         poll_type: pollType,

@@ -71,9 +71,10 @@ interface Poll {
   poll_type: string
   options: PollOption[]
   voters: string[]
-  closes_on: string | null
-  allow_multiple: boolean
+  expiry_date: string | null
+  allow_multiple_votes: boolean
   is_anonymous: boolean
+  created_by: string
 }
 
 const PIP_GRADIENTS = [
@@ -196,6 +197,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
   const [votingPollId, setVotingPollId] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ pollId: string; type: 'close' | 'delete' } | null>(null)
 
   async function handleVote(pollId: string, optionLabel: string) {
     if (!currentUserId || votingPollId) return
@@ -219,6 +221,18 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
     }
     setVotingPollId(null)
     setSelectedOptions((prev: Record<string, string>) => { const n = { ...prev }; delete n[pollId]; return n })
+  }
+
+  async function handleClosePoll(pollId: string) {
+    await supabase.from('polls').update({ status: 'closed' }).eq('id', pollId)
+    setConfirmAction(null)
+    if (currentUserId) await loadGroupData(currentUserId)
+  }
+
+  async function handleDeletePoll(pollId: string) {
+    await supabase.from('polls').delete().eq('id', pollId)
+    setConfirmAction(null)
+    if (currentUserId) await loadGroupData(currentUserId)
   }
 
   function getMemberName(userId: string) {
@@ -479,7 +493,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                         <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide ${poll.poll_type === 'availability' ? 'bg-gradient-to-r from-orange-50 to-pink-50 text-orange-700 border border-orange-200' : 'bg-gradient-to-r from-pink-50 to-violet-50 text-violet-700 border border-violet-200'}`}>
                           {poll.poll_type}
                         </span>
-                        {poll.allow_multiple && (
+                        {poll.allow_multiple_votes && (
                           <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-stone-500 border border-stone-200">Multi-pick</span>
                         )}
                         {poll.is_anonymous && (
@@ -487,9 +501,9 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                         )}
                       </div>
                       <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-                        {poll.closes_on && (
+                        {poll.expiry_date && (
                           <span className="text-[10px] text-stone-400">
-                            Closes {new Date(poll.closes_on).toLocaleDateString('default', { month: 'short', day: 'numeric' })}
+                            Closes {new Date(poll.expiry_date).toLocaleDateString('default', { month: 'short', day: 'numeric' })}
                           </span>
                         )}
                         <span className="text-xs text-stone-400">{poll.voters?.length ?? 0}/{group.members.length} voted</span>
@@ -559,7 +573,7 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                     </div>
 
                     {/* Footer */}
-                    <div className="px-3 pb-3">
+                    <div className="px-3 pb-3 space-y-2">
                       {!hasVoted ? (
                         <button
                           onClick={() => selected && handleVote(poll.id, selected)}
@@ -572,6 +586,46 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
                         <div className="text-center text-[11px] text-stone-400">
                           Voted ✓ · {group.members.length - (poll.voters?.length ?? 0)} still pending
                         </div>
+                      )}
+
+                      {/* Creator controls */}
+                      {poll.created_by === currentUserId && (
+                        confirmAction?.pollId === poll.id ? (
+                          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
+                            <p className="text-xs font-semibold text-red-700 mb-2 text-center">
+                              {confirmAction.type === 'delete' ? 'Delete this poll? This cannot be undone.' : 'Close this poll? Voting will end immediately.'}
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setConfirmAction(null)}
+                                className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-stone-600 bg-white border border-stone-200 hover:bg-stone-50 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => confirmAction.type === 'delete' ? handleDeletePoll(poll.id) : handleClosePoll(poll.id)}
+                                className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors"
+                              >
+                                {confirmAction.type === 'delete' ? 'Yes, delete' : 'Yes, close'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setConfirmAction({ pollId: poll.id, type: 'close' })}
+                              className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-stone-500 bg-stone-100 hover:bg-stone-200 transition-colors"
+                            >
+                              Close poll
+                            </button>
+                            <button
+                              onClick={() => setConfirmAction({ pollId: poll.id, type: 'delete' })}
+                              className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
+                            >
+                              Delete poll
+                            </button>
+                          </div>
+                        )
                       )}
                     </div>
                   </div>
