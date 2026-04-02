@@ -119,8 +119,9 @@ function buildCalendarGrid(year: number, month: number, events: Event[]) {
   const daysInPrev = new Date(year, month, 0).getDate()
   const today = new Date()
 
-  const confirmedDates = new Set(events.filter((e) => e.status === 'confirmed').map((e) => new Date(e.date).getDate()))
-  const proposedDates = new Set(events.filter((e) => e.status === 'proposed').map((e) => new Date(e.date).getDate()))
+  const inMonth = (e: Event) => { const d = new Date(e.date); return d.getFullYear() === year && d.getMonth() === month }
+  const confirmedDates = new Set(events.filter((e) => e.status === 'confirmed' && inMonth(e)).map((e) => new Date(e.date).getDate()))
+  const proposedDates = new Set(events.filter((e) => e.status === 'proposed' && inMonth(e)).map((e) => new Date(e.date).getDate()))
 
   const cells = []
   for (let i = firstDay - 1; i >= 0; i--) {
@@ -152,8 +153,19 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
   const [polls, setPolls] = useState<Poll[]>([])
 
   const now = new Date()
-  const calendarGrid = buildCalendarGrid(now.getFullYear(), now.getMonth(), events)
-  const calMonthLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' })
+  const [calYear, setCalYear] = useState(now.getFullYear())
+  const [calMonth, setCalMonth] = useState(now.getMonth())
+  const calendarGrid = buildCalendarGrid(calYear, calMonth, events)
+  const calMonthLabel = new Date(calYear, calMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+
+  function prevMonth() {
+    if (calMonth === 0) { setCalYear(calYear - 1); setCalMonth(11) }
+    else setCalMonth(calMonth - 1)
+  }
+  function nextMonth() {
+    if (calMonth === 11) { setCalYear(calYear + 1); setCalMonth(0) }
+    else setCalMonth(calMonth + 1)
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -336,6 +348,20 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
           </div>
         </div>
 
+        {/* Action buttons */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: '＋ Create event', action: goToCreateEvent },
+            { label: '📊 Create poll',  action: goToCreatePoll },
+            { label: '🔗 Share invite', action: () => {} },
+          ].map(({ label, action }) => (
+            <button key={label} onClick={action} className="relative overflow-hidden bg-stone-900 text-white py-3 rounded-2xl text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 group">
+              <span className="absolute inset-0 bg-gradient-to-br from-orange-400 via-pink-500 to-violet-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+              <span className="relative z-10">{label}</span>
+            </button>
+          ))}
+        </div>
+
         {/* Health score */}
         <div className="rounded-xl bg-gradient-to-r from-orange-50 via-pink-50 to-violet-50 border border-stone-200 p-4 flex items-center gap-4">
           <div className="relative w-14 h-14 flex-shrink-0">
@@ -392,9 +418,9 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
             </div>
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <button className="w-7 h-7 rounded-full bg-stone-50 border border-stone-200 flex items-center justify-center text-xs text-stone-600 hover:bg-stone-100 transition-colors">‹</button>
+                <button onClick={prevMonth} className="w-7 h-7 rounded-full bg-stone-50 border border-stone-200 flex items-center justify-center text-xs text-stone-600 hover:bg-stone-100 transition-colors">‹</button>
                 <span className="text-sm font-semibold text-stone-900">{calMonthLabel}</span>
-                <button className="w-7 h-7 rounded-full bg-stone-50 border border-stone-200 flex items-center justify-center text-xs text-stone-600 hover:bg-stone-100 transition-colors">›</button>
+                <button onClick={nextMonth} className="w-7 h-7 rounded-full bg-stone-50 border border-stone-200 flex items-center justify-center text-xs text-stone-600 hover:bg-stone-100 transition-colors">›</button>
               </div>
               <div className="grid grid-cols-7 text-center mb-1">
                 {['Su','Mo','Tu','We','Th','Fr','Sa'].map((d) => (
@@ -736,19 +762,6 @@ export default function DashboardPage({ params }: { params: { slug: string } }) 
           </div>
         )}
 
-        {/* Action buttons */}
-        <div className="grid grid-cols-3 gap-3 pb-4">
-          {[
-            { label: '＋ Create event', action: () => {} },
-            { label: '📊 Create poll',  action: goToCreatePoll },
-            { label: '🔗 Share invite', action: () => {} },
-          ].map(({ label, action }) => (
-            <button key={label} onClick={action} className="relative overflow-hidden bg-stone-900 text-white py-3 rounded-2xl text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 group">
-              <span className="absolute inset-0 bg-gradient-to-br from-orange-400 via-pink-500 to-violet-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-              <span className="relative z-10">{label}</span>
-            </button>
-          ))}
-        </div>
 
       </main>
 
